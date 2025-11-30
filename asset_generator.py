@@ -346,14 +346,35 @@ def main():
     print(f"\n📂 Asset Directory: {base_dir}")
     update_theme_manifest(theme_title)
 
-    default_board = "obsidian and white marble, ancient runes, glowing cracks"
+    # --- PROMPT MANAGEMENT ---
+    prompts_file = os.path.join(base_dir, "prompts.json")
+    saved_prompts = {}
+    if os.path.exists(prompts_file):
+        try:
+            with open(prompts_file, "r") as f:
+                saved_prompts = json.load(f)
+            print(f"   ℹ️ Loaded saved prompts from {prompts_file}")
+        except: pass
+
+    default_board = saved_prompts.get("board_desc", "obsidian and white marble, ancient runes, glowing cracks")
     board_desc = input(f"Board Style [default: {default_board[:20]}...]: ").strip() or default_board
     
-    default_piece = "animated stone statues, glowing eyes, dark fantasy armor"
+    default_piece = saved_prompts.get("piece_desc", "animated stone statues, glowing eyes, dark fantasy armor")
     piece_desc = input(f"Piece Style [default: {default_piece[:20]}...]: ").strip() or default_piece
     
-    default_anim = "violent shattering, magic explosions, debris flying, screen shake"
+    default_anim = saved_prompts.get("anim_desc", "violent shattering, magic explosions, debris flying, screen shake")
     anim_desc = input(f"Animation Style [default: {default_anim[:20]}...]: ").strip() or default_anim
+
+    # Save current prompts
+    try:
+        with open(prompts_file, "w") as f:
+            json.dump({
+                "board_desc": board_desc,
+                "piece_desc": piece_desc,
+                "anim_desc": anim_desc
+            }, f, indent=2)
+    except Exception as e:
+        print(f"   ⚠️ Could not save prompts: {e}")
 
     # 2. Execution
     board_png = generate_board_texture(base_dir, board_desc, temp_dir)
