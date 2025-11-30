@@ -5,6 +5,10 @@ BattleChess9000 ⚔️♟️
 
 Inspired by the 1988 DOS classic "Battle Chess" — Reimagined with Generative AI.
 
+I think it's important to appreciate the original and recognize how far we've come since then:
+
+![Original Battle Chess for DOS in 1988 Screenshot](battle_chess_1988.png) 
+
 BattleChess9000 uses the power of Google's Gemini 3 (Nano Banana) and Veo 3 models to dynamically generate every asset in the game. From the marble-and-obsidian board to the cinematic kill animations where pieces violently shatter each other, everything is created by AI.
 
 🚀 Features
