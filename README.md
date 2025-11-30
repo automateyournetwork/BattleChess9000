@@ -131,3 +131,12 @@ Verify the assets/themes.json updated correctly.
 Submit a Pull Request so others can enjoy your battle creations.
 
 Let's make this awesome together!
+
+
+## Additonal information - Creating themes 
+
+If you run out of tokens or hit quota limits while generating assets, don't worry! You can simply rerun the asset_generator.py script with the same theme name, and it will resume from where it left off.
+
+If you are unhappy with any of the generated assets, you can delete the specific files from the assets/your_theme/ folder and rerun the script. It will regenerate only the missing assets without affecting the others.
+
+git is your friend you can use it to track changes in your assets folder. This way, you can easily revert to previous versions of your generated assets if needed.
