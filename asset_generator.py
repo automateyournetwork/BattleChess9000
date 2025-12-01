@@ -25,7 +25,7 @@ API_KEY = os.environ.get("GEMINI_API_KEY")
 # ============================================================================
 def banana_generate(prompt: str, input_paths: Optional[List[str]] = None, 
                     out_dir: str = ".", n: int = 1,
-                    model: str = "gemini-3-pro-image-preview"):
+                    model: str = os.environ.get("IMAGE_MODEL", "gemini-3-pro-image-preview")):
     
     if not API_KEY:
         print("❌ GEMINI_API_KEY not found.")
