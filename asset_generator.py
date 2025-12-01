@@ -87,7 +87,7 @@ def banana_generate(prompt: str, input_paths: Optional[List[str]] = None,
 # ============================================================================
 def veo_generate_video(prompt: str, image_path: Optional[str], out_dir: str = ".",
                        aspect_ratio="16:9", resolution="720p",
-                       model="veo-3.1-generate-preview"):
+                       model=os.environ.get("VIDEO_MODEL", "veo-3.1-generate-preview")):
     
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     client = genai.Client(api_key=API_KEY)
