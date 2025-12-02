@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Battle Chess v3.4</title>
+    <!-- Mobile-friendly viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gemini Battle Chess - Powered by Google Gemini, Nano Banana 3, and Veo3</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-user-select: none; }
         
         .ui-layer { position: absolute; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
         #hud { top: 20px; }
@@ -84,7 +85,7 @@
         .toggle-btn { flex: 1; background: #222; border: 1px solid #444; padding: 15px; }
         .toggle-btn.active { background: #eee; color: black; border-color: white; }
 
-        .promo-options { display: flex; gap: 20px; margin-top:20px;}
+        .promo-options { display: flex; gap: 20px; margin-top:20px; justify-content: center;}
         .promo-piece { 
             width: 60px; height: 60px; background: #333; border: 2px solid #555;
             display: flex; align-items: center; justify-content: center;
@@ -114,6 +115,58 @@
         #video-msg { color: #ff5555; font-family: monospace; font-size: 18px; margin-bottom: 20px; }
         #skip-btn { width: auto; display: inline-block; background: transparent; border: 2px solid white; margin-top: 20px; }
         #skip-btn:hover { background: white; color: black; }
+
+        /* --- MOBILE / RESPONSIVE STYLES --- */
+        @media (max-width: 768px) {
+            /* Shrink the HUD text */
+            h1 { font-size: 16px; letter-spacing: 2px; }
+            #status { font-size: 14px; }
+            #player-display { font-size: 12px; }
+
+            /* Make modals fit nicely on phone screens */
+            .menu-box { 
+                width: 95%; 
+                padding: 15px; 
+                max-height: 95vh; 
+                overflow-y: auto;
+            }
+            
+            /* Adjust buttons and inputs for touch targets */
+            button, select, input[type="text"], .toggle-btn {
+                padding: 15px;
+                font-size: 14px;
+            }
+
+            /* Move Capture Trackers to bottom to save side-width */
+            .tracker {
+                flex-direction: row;
+                width: 100%;
+                height: 40px;
+                top: auto;
+                bottom: 10px;
+                padding: 0;
+                justify-content: center;
+                gap: 5px;
+            }
+            .tracker-left { left: 0; bottom: 50px; align-items: center; }
+            .tracker-right { right: 0; bottom: 10px; align-items: center; }
+            
+            .capture-icon { width: 35px; height: 35px; }
+
+            /* Resize the massive CHECK alert */
+            #check-alert {
+                font-size: 40px;
+                padding: 10px 20px;
+                border-width: 3px;
+                width: 80%;
+                text-align: center;
+            }
+
+            /* Make promotion pieces tappable */
+            .promo-piece { width: 50px; height: 50px; font-size: 25px; }
+            
+            .endgame-content { max-height: 60vh; }
+        }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -315,8 +368,19 @@
             buildSimpleBoard();
             initPieces();
             
-            if (PLAYER_COLOR === 'w') { camera.position.set(0, 60, 80); camera.lookAt(0,0,0); } 
-            else { camera.position.set(0, 60, -80); camera.lookAt(0,0,0); controls.target.set(0,0,0); }
+            const isMobile = window.innerWidth < 768;
+            if (PLAYER_COLOR === 'w') { 
+                const zPos = isMobile ? 110 : 80;
+                const yPos = isMobile ? 80 : 60;
+                camera.position.set(0, yPos, zPos); 
+                camera.lookAt(0,0,0); 
+            } else { 
+                const zPos = isMobile ? -110 : -80;
+                const yPos = isMobile ? 80 : 60;
+                camera.position.set(0, yPos, zPos); 
+                camera.lookAt(0,0,0); 
+                controls.target.set(0,0,0); 
+            }
             
             updateStatus();
             if(PLAYER_COLOR === 'b') setTimeout(makeAIMove, 1000);
@@ -431,16 +495,46 @@
             });
         }
 
+        // --- UNIFIED INPUT HANDLING (MOUSE + TOUCH + PEN) ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-        window.addEventListener('click', onMouseClick, false);
 
-        function onMouseClick(event) {
+        const inputState = {
+            isPointerDown: false,
+            startX: 0,
+            startY: 0
+        };
+
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+            // Only react to primary button / touch
+            if (e.button !== undefined && e.button !== 0) return;
+            inputState.isPointerDown = true;
+            inputState.startX = e.clientX;
+            inputState.startY = e.clientY;
+        });
+
+        renderer.domElement.addEventListener('pointerup', (e) => {
+            if (!inputState.isPointerDown) return;
+            inputState.isPointerDown = false;
+
+            const dx = e.clientX - inputState.startX;
+            const dy = e.clientY - inputState.startY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            const threshold = (e.pointerType === 'touch') ? 12 : 5;
+
+            if (dist < threshold) {
+                onInteraction(e.clientX, e.clientY);
+            }
+        });
+
+        function onInteraction(clientX, clientY) {
             if(document.getElementById('battle-overlay').style.display === 'flex') return;
             if(isAIThinking || game.game_over() || game.turn() !== PLAYER_COLOR) return;
 
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            
             raycaster.setFromCamera(mouse, camera);
 
             const pieceIntersects = raycaster.intersectObjects(Object.values(piecesMap));
@@ -507,7 +601,6 @@
                 handleMoveVisuals(move, () => {
                     updateStatus();
                     if (game.in_checkmate() || game.in_draw()) {
-                         // Game over handled in updateStatus / handleMoveVisuals chain
                          if(game.in_checkmate()) playCheckmateAnimation(move);
                          else triggerGameOver();
                     } else if(!game.game_over()) {
@@ -658,7 +751,6 @@
             document.getElementById('end-title').innerText = reason;
             document.getElementById('end-reason').innerText = `Well fought, ${PLAYER_NAME}.`;
             
-            // Slight delay so the user sees the final position before the modal pops
             setTimeout(() => {
                 document.getElementById('game-over-modal').classList.add('active');
             }, 1000);
@@ -688,7 +780,6 @@
             const attackerPiece = getFullName(move.piece, move.color).split('_')[1];
             const filename = `${attackerColor}_${attackerPiece}_takes_${victimColor}_king.mp4`;
             
-            // Play video, then trigger game over modal when done
             playVideoFile(filename, () => {
                 triggerGameOver();
             });
@@ -738,7 +829,6 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
     </script>
 </body>
 </html>
