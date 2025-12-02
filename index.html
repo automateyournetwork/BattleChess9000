@@ -169,7 +169,7 @@
         }
     </style>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/ r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -298,6 +298,25 @@
         <button id="skip-btn">Skip Animation</button>
     </div>
 
+    <!-- CHAT PANEL (default hidden; shown in PvP mode) -->
+    <div id="chat-panel"
+         style="position:fixed; bottom:10px; left:10px; width:260px; max-height:200px; background:rgba(0,0,0,0.8); border:1px solid #444; border-radius:6px; display:none; flex-direction:column; z-index:20; pointer-events:auto; font-size:12px;">
+        <div style="padding:4px 8px; border-bottom:1px solid #333; color:#ccc; display:flex; justify-content:space-between; align-items:center;">
+            <span>Room Chat</span>
+            <span style="font-size:10px; color:#777;">[T] to focus</span>
+        </div>
+        <div id="chat-messages"
+             style="flex:1; padding:6px 8px; overflow-y:auto; color:#ddd; font-family:monospace;"></div>
+        <div style="display:flex; gap:4px; padding:4px 4px 6px 4px;">
+            <input id="chat-input"
+                   type="text"
+                   placeholder="type message..."
+                   style="flex:1; padding:4px 6px; border-radius:4px; border:1px solid #444; background:#111; color:#eee; font-size:12px;">
+            <button id="chat-send-btn"
+                    style="padding:4px 8px; border-radius:4px; border:1px solid #555; background:#333; color:#eee; cursor:pointer; font-size:12px;">Send</button>
+        </div>
+    </div>
+
     <script>
         let CURRENT_THEME = '';
         let PLAYER_COLOR = 'w';
@@ -311,7 +330,7 @@
         let joinTimeout = null;
         const JOIN_TIMEOUT_MS = 180000; // 180 seconds
 
-        // TODO: replace with your Cloud Run WebSocket endpoint
+        // Cloud Run WebSocket endpoint
         const WS_URL = "wss://battlechess9000-multiplayer-service-960937205198.us-central1.run.app";
 
         const BOARD_SQUARE_SIZE = 10;
@@ -349,6 +368,7 @@
         const piecesMap = {};
         const pieceCache = {};
 
+        // ---------- THEME LOADING WITH URL LOCK ----------
         window.onload = function() { loadThemes(); };
 
         function loadThemes() {
@@ -360,13 +380,30 @@
                 .then(themes => {
                     const sel = document.getElementById('theme-select');
                     sel.innerHTML = '';
-                    if(themes.length === 0) {
-                        const opt = document.createElement('option'); opt.text = "No themes found"; sel.add(opt); return;
+                    if (themes.length === 0) {
+                        const opt = document.createElement('option');
+                        opt.text = "No themes found";
+                        sel.add(opt);
+                        return;
                     }
+
                     themes.forEach(t => {
-                        const opt = document.createElement('option'); opt.value = t; opt.text = t.replace(/_/g, ' ').toUpperCase(); sel.add(opt);
+                        const opt = document.createElement('option');
+                        opt.value = t;
+                        opt.text = t.replace(/_/g, ' ').toUpperCase();
+                        sel.add(opt);
                     });
-                    sel.value = themes[themes.length-1];
+
+                    // If URL has ?theme=xyz, lock to that theme for joiners
+                    const url = new URL(window.location.href);
+                    const forcedTheme = url.searchParams.get('theme');
+
+                    if (forcedTheme && themes.includes(forcedTheme)) {
+                        sel.value = forcedTheme;
+                        sel.disabled = true; // locked to host's theme
+                    } else {
+                        sel.value = themes[themes.length - 1]; // default to last
+                    }
                 })
                 .catch(e => {
                     console.error("Theme Load Error:", e);
@@ -375,6 +412,7 @@
                 });
         }
 
+        // ---------- MODE / COLOR UI ----------
         function setGameMode(mode) {
             GAME_MODE = mode;
             const modeGroup = document.getElementById('mode-toggle-group');
@@ -403,11 +441,100 @@
             refreshColorToggleUI();
         }
 
+        // ---------- CHAT UI HELPERS ----------
+        function setChatVisible(visible) {
+            const panel = document.getElementById('chat-panel');
+            if (!panel) return;
+            panel.style.display = visible ? 'flex' : 'none';
+        }
+
+        function appendChatMessage(who, text) {
+            const box = document.getElementById('chat-messages');
+            if (!box) return;
+            const line = document.createElement('div');
+            line.innerHTML = `<span style="color:#4da6ff;">${who}:</span> <span>${text}</span>`;
+            box.appendChild(line);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            if (!input || !input.value.trim()) return;
+            const text = input.value.trim();
+            input.value = "";
+
+            appendChatMessage("You", text);
+
+            if (socket && socket.readyState === WebSocket.OPEN && GAME_MODE === 'pvp') {
+                socket.send(JSON.stringify({
+                    type: 'chat',
+                    roomId: ROOM_ID,
+                    name: PLAYER_NAME,
+                    text: text
+                }));
+            }
+        }
+
+        // Wire chat send + Enter key after DOM is loaded
+        window.addEventListener('load', () => {
+            const sendBtn = document.getElementById('chat-send-btn');
+            const chatInput = document.getElementById('chat-input');
+            if (sendBtn) sendBtn.onclick = sendChatMessage;
+            if (chatInput) {
+                chatInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        sendChatMessage();
+                    }
+                });
+            }
+        });
+
+        // Press T to focus chat in PvP
+        window.addEventListener('keydown', (e) => {
+            if ((e.key === 't' || e.key === 'T') && GAME_MODE === 'pvp') {
+                const panel = document.getElementById('chat-panel');
+                const input = document.getElementById('chat-input');
+                if (panel && input && panel.style.display !== 'none') {
+                    input.focus();
+                    e.preventDefault();
+                }
+            }
+        });
+
+        // ---------- COPY SHARE LINK ----------
+        function copyShareLink() {
+            const input = document.getElementById('share-link-input');
+            const status = document.getElementById('copy-link-status');
+            if (!input || !input.value) return;
+
+            input.select();
+            input.setSelectionRange(0, 99999);
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(input.value)
+                    .then(() => {
+                        status.innerText = "Link copied!";
+                        setTimeout(() => { status.innerText = ""; }, 2000);
+                    })
+                    .catch(() => {
+                        document.execCommand('copy');
+                        status.innerText = "Link copied!";
+                        setTimeout(() => { status.innerText = ""; }, 2000);
+                    });
+            } else {
+                document.execCommand('copy');
+                status.innerText = "Link copied!";
+                setTimeout(() => { status.innerText = ""; }, 2000);
+            }
+        }
+
+        // ---------- GAME START ----------
         function startGame() {
             const sel = document.getElementById('theme-select');
             const nameInput = document.getElementById('player-name-input');
             
-            if(!sel.value || sel.value === "") {
+            if (!sel.value || sel.value === "") {
                 alert("Please select a valid theme. If none appear, run asset_generator.py first!");
                 return;
             }
@@ -442,38 +569,15 @@
             updateStatus();
 
             if (GAME_MODE === 'pvp') {
+                setChatVisible(true);
                 setupMultiplayerRoom();
             } else {
-                // Vs AI
-                if(PLAYER_COLOR === 'b') setTimeout(makeAIMove, 1000);
+                setChatVisible(false);
+                if (PLAYER_COLOR === 'b') setTimeout(makeAIMove, 1000);
             }
         }
 
-        function copyShareLink() {
-            const input = document.getElementById('share-link-input');
-            const status = document.getElementById('copy-link-status');
-            if (!input || !input.value) return;
-        
-            // Select the text for older browsers
-            input.select();
-            input.setSelectionRange(0, 99999);
-        
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(input.value).then(() => {
-                    status.innerText = "Link copied!";
-                    setTimeout(() => { status.innerText = ""; }, 2000);
-                }).catch(() => {
-                    document.execCommand('copy');
-                    status.innerText = "Link copied!";
-                    setTimeout(() => { status.innerText = ""; }, 2000);
-                });
-            } else {
-                document.execCommand('copy');
-                status.innerText = "Link copied!";
-                setTimeout(() => { status.innerText = ""; }, 2000);
-            }
-        }
-        
+        // ---------- MULTIPLAYER ----------
         function setupMultiplayerRoom() {
             const url = new URL(window.location.href);
             const existingRoom = url.searchParams.get('room');
@@ -511,6 +615,7 @@
                 document.getElementById('status').innerText = "Multiplayer not configured. Falling back to VS AI.";
                 GAME_MODE = 'ai';
                 document.getElementById('share-link-wrapper').style.display = 'none';
+                setChatVisible(false);
                 if (PLAYER_COLOR === 'b') setTimeout(makeAIMove, 1000);
                 return;
             }
@@ -533,6 +638,7 @@
                         socket = null;
                         GAME_MODE = 'ai';
                         document.getElementById('share-link-wrapper').style.display = 'none';
+                        setChatVisible(false);
                         document.getElementById('status').innerText = "No player joined. VS AI mode activated.";
                         if (PLAYER_COLOR === 'b' && !game.game_over()) {
                             setTimeout(makeAIMove, 1000);
@@ -569,12 +675,19 @@
 
                     document.getElementById('status').innerText = 
                         "Game started! " + (game.turn() === 'w' ? 'White' : 'Black') + " to move.";
+
                 } else if (msg.type === 'move') {
                     const move = msg.move;
                     game.move(move);
                     handleMoveVisuals(move, () => {
                         updateStatus();
                     });
+
+                } else if (msg.type === 'chat') {
+                    if (msg.name && msg.text) {
+                        appendChatMessage(msg.name, msg.text);
+                    }
+
                 } else if (msg.type === 'error') {
                     alert(msg.message || "Multiplayer error");
                     document.getElementById('status').innerText = "Multiplayer error.";
@@ -595,6 +708,7 @@
             };
         }
 
+        // ---------- BOARD & PIECES ----------
         function buildSimpleBoard() {
             const boardTexture = textureLoader.load(ASSETS_PATH + 'board_texture.png', (tex) => { tex.encoding = THREE.sRGBEncoding; });
             const boardGeo = new THREE.BoxGeometry(84, 1, 84);
@@ -631,13 +745,18 @@
                 ctx.drawImage(img, 0, 0);
                 const idata = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const d = idata.data;
-                for(let i=0; i<d.length; i+=4) {
-                    const r=d[i], g=d[i+1], b=d[i+2];
-                    if (color === 'w') { if(r < 40 && g < 40 && b < 40) d[i+3] = 0; } 
-                    else { if(r > 215 && g > 215 && b > 215) d[i+3] = 0; }
+                for (let i = 0; i < d.length; i += 4) {
+                    const r = d[i], g = d[i+1], b = d[i+2];
+                    if (color === 'w') {
+                        if (r < 40 && g < 40 && b < 40) d[i+3] = 0;
+                    } else {
+                        if (r > 215 && g > 215 && b > 215) d[i+3] = 0;
+                    }
                 }
                 ctx.putImageData(idata, 0, 0);
-                tex.image = canvas; tex.needsUpdate = true; tex.encoding = THREE.sRGBEncoding;
+                tex.image = canvas;
+                tex.needsUpdate = true;
+                tex.encoding = THREE.sRGBEncoding;
             };
             pieceCache[name] = tex;
             return tex;
@@ -654,10 +773,13 @@
                 ctx.drawImage(img, 0, 0);
                 const idata = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const d = idata.data;
-                for(let i=0; i<d.length; i+=4) {
-                    const r=d[i], g=d[i+1], b=d[i+2];
-                    if (color === 'w') { if(r < 40 && g < 40 && b < 40) d[i+3] = 0; } 
-                    else { if(r > 215 && g > 215 && b > 215) d[i+3] = 0; }
+                for (let i = 0; i < d.length; i += 4) {
+                    const r = d[i], g = d[i+1], b = d[i+2];
+                    if (color === 'w') {
+                        if (r < 40 && g < 40 && b < 40) d[i+3] = 0;
+                    } else {
+                        if (r > 215 && g > 215 && b > 215) d[i+3] = 0;
+                    }
                 }
                 ctx.putImageData(idata, 0, 0);
                 callback(canvas.toDataURL());
@@ -738,8 +860,8 @@
         });
 
         function onInteraction(clientX, clientY) {
-            if(document.getElementById('battle-overlay').style.display === 'flex') return;
-            if(isAIThinking || game.game_over() || game.turn() !== PLAYER_COLOR) return;
+            if (document.getElementById('battle-overlay').style.display === 'flex') return;
+            if (isAIThinking || game.game_over() || game.turn() !== PLAYER_COLOR) return;
 
             mouse.x = (clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -750,8 +872,13 @@
             if (pieceIntersects.length > 0) {
                 const mesh = pieceIntersects[0].object;
                 const square = mesh.userData.square;
-                if (game.get(square).color === PLAYER_COLOR) { selectPiece(square); return; }
-                else if (selectedSquare) { attemptMove(square); return; }
+                if (game.get(square).color === PLAYER_COLOR) {
+                    selectPiece(square);
+                    return;
+                } else if (selectedSquare) {
+                    attemptMove(square);
+                    return;
+                }
             }
 
             const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -780,7 +907,7 @@
             if (piece.type === 'p' && (targetSquare[1] === '8' || targetSquare[1] === '1')) {
                 const tempMove = new Chess(game.fen());
                 const valid = tempMove.move({from:selectedSquare, to:targetSquare, promotion:'q'});
-                if(valid) {
+                if (valid) {
                     pendingPromotionMove = { from: selectedSquare, to: targetSquare };
                     document.getElementById('promo-modal').classList.add('active');
                     return;
@@ -804,20 +931,21 @@
         function executeMove(moveObj) {
             const move = game.move(moveObj);
             if (move) {
-                if(selectedMesh) selectedMesh.material.color.setHex(0xffffff);
-                selectedSquare = null; selectedMesh = null;
+                if (selectedMesh) selectedMesh.material.color.setHex(0xffffff);
+                selectedSquare = null;
+                selectedMesh = null;
                 
                 handleMoveVisuals(move, () => {
                     updateStatus();
 
                     if (game.in_checkmate() || game.in_draw()) {
-                        if(game.in_checkmate()) playCheckmateAnimation(move);
+                        if (game.in_checkmate()) playCheckmateAnimation(move);
                         else triggerGameOver();
                         return;
                     }
 
                     if (GAME_MODE === 'ai') {
-                        if(!game.game_over()) {
+                        if (!game.game_over()) {
                             isAIThinking = true;
                             document.getElementById('status').innerText = "AI is thinking...";
                             setTimeout(makeAIMove, 800);
@@ -883,7 +1011,7 @@
             if (move.captured) {
                 playKillVideo(move, () => {
                     const victimMesh = piecesMap[destSquare];
-                    if(victimMesh) scene.remove(victimMesh);
+                    if (victimMesh) scene.remove(victimMesh);
                     if (move.promotion) {
                         scene.remove(pieceMesh);
                         spawnPiece(move.promotion, move.color, originSquare);
@@ -926,8 +1054,8 @@
             alertEl.style.display = 'none';
             
             const board = game.board();
-            for(let r=0; r<8; r++) {
-                for(let c=0; c<8; c++) {
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
                     const p = board[r][c];
                     const sq = String.fromCharCode(97 + c) + (8 - r);
                     if (piecesMap[sq]) piecesMap[sq].material.color.setHex(0xffffff);
@@ -940,12 +1068,12 @@
                 setTimeout(() => { alertEl.style.display = 'none'; }, 2500);
                 
                 const turn = game.turn();
-                for(let r=0; r<8; r++) {
-                    for(let c=0; c<8; c++) {
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
                         const p = board[r][c];
                         if (p && p.type === 'k' && p.color === turn) {
                             const sq = String.fromCharCode(97 + c) + (8 - r);
-                            if(piecesMap[sq]) piecesMap[sq].material.color.setHex(0xff0000);
+                            if (piecesMap[sq]) piecesMap[sq].material.color.setHex(0xff0000);
                         }
                     }
                 }
@@ -964,10 +1092,10 @@
 
         function triggerGameOver() {
             let reason = "Game Over";
-            if(game.in_checkmate()) {
+            if (game.in_checkmate()) {
                 const winner = game.turn() === 'w' ? "BLACK" : "WHITE";
                 reason = `CHECKMATE - ${winner} WINS!`;
-            } else if(game.in_draw()) {
+            } else if (game.in_draw()) {
                 reason = "DRAW (Stalemate / Insufficient Material)";
             }
             
@@ -979,6 +1107,7 @@
             }, 1000);
         }
 
+        // ---------- VIDEO / ANIMATIONS ----------
         const overlay = document.getElementById('battle-overlay');
         const vid = document.getElementById('battle-video');
         const msg = document.getElementById('video-msg');
@@ -1035,6 +1164,7 @@
             }
         }
 
+        // ---------- RENDER LOOP ----------
         function animate() {
             requestAnimationFrame(animate);
             TWEEN.update();
@@ -1052,24 +1182,6 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-    </script>    
-    <!-- ✅ CHAT PANEL: this goes OUTSIDE the <script>, still inside <body> -->
-    <div id="chat-panel"
-         style="position:fixed; bottom:10px; left:10px; width:260px; max-height:200px; background:rgba(0,0,0,0.8); border:1px solid #444; border-radius:6px; display:none; flex-direction:column; z-index:20; pointer-events:auto; font-size:12px;">
-        <div style="padding:4px 8px; border-bottom:1px solid #333; color:#ccc; display:flex; justify-content:space-between; align-items:center;">
-            <span>Room Chat</span>
-            <span style="font-size:10px; color:#777;">[T] to focus</span>
-        </div>
-        <div id="chat-messages"
-             style="flex:1; padding:6px 8px; overflow-y:auto; color:#ddd; font-family:monospace;"></div>
-        <div style="display:flex; gap:4px; padding:4px 4px 6px 4px;">
-            <input id="chat-input"
-                   type="text"
-                   placeholder="type message..."
-                   style="flex:1; padding:4px 6px; border-radius:4px; border:1px solid #444; background:#111; color:#eee; font-size:12px;">
-            <button id="chat-send-btn"
-                    style="padding:4px 8px; border-radius:4px; border:1px solid #555; background:#333; color:#eee; cursor:pointer; font-size:12px;">Send</button>
-        </div>
-    </div>    
+    </script>
 </body>
 </html>
