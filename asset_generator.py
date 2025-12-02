@@ -4,6 +4,7 @@ import sys
 import shutil
 import json
 import mimetypes
+import subprocess  # Added for FFmpeg
 from pathlib import Path
 from typing import Optional, List
 from google import genai
@@ -143,7 +144,73 @@ def veo_generate_video(prompt: str, image_path: Optional[str], out_dir: str = ".
     return out_path
 
 # ============================================================================
-# 3) PIPELINE STEPS
+# 3) COMPRESSION (FFmpeg)
+# ============================================================================
+def compress_new_assets(video_dir):
+    """
+    Compresses all MP4s in the target directory using FFmpeg.
+    """
+    # Check if FFmpeg is installed
+    if shutil.which("ffmpeg") is None:
+        print("\n⚠️  FFmpeg not found in system PATH. Skipping compression.")
+        print("    Install FFmpeg to enable automatic file size reduction.")
+        return
+
+    print(f"\n🗜️  Compressing video assets in: {video_dir}...")
+    
+    files = [f for f in os.listdir(video_dir) if f.lower().endswith(".mp4")]
+    if not files:
+        print("    No videos found to compress.")
+        return
+
+    count = 0
+    total_saved = 0
+
+    for file in files:
+        full_path = os.path.join(video_dir, file)
+        temp_path = full_path + ".temp.mp4"
+        
+        # Configuration: 
+        # -crf 23 (Visual Lossless, standard for streaming)
+        # -preset slow (Better compression ratio)
+        # -c:a copy (Keep original audio exactly)
+        # -movflags +faststart (Optimize for web playback)
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", full_path,
+            "-c:v", "libx264", "-crf", "23", "-preset", "slow",
+            "-c:a", "copy",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            temp_path
+        ]
+
+        try:
+            # Run silently
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            original_size = os.path.getsize(full_path)
+            new_size = os.path.getsize(temp_path)
+            
+            if new_size < original_size:
+                os.replace(temp_path, full_path)
+                saved = original_size - new_size
+                total_saved += saved
+                count += 1
+            else:
+                # If compression made it bigger (rare), keep original
+                os.remove(temp_path)
+                
+        except Exception as e:
+            print(f"    ❌ Error compressing {file}: {e}")
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    mb_saved = total_saved / (1024 * 1024)
+    print(f"    ✅ Compression Complete. Optimized {count} files. Saved {mb_saved:.2f} MB total.")
+
+# ============================================================================
+# 4) PIPELINE STEPS
 # ============================================================================
 
 def create_guide_board(out_path, size=1024):
@@ -325,8 +392,8 @@ def update_theme_manifest(theme_name):
 
 def main():
     print("=========================================")
-    print("   BATTLE CHESS ASSET GENERATOR v3.3   ")
-    print("   *** QUOTA-SAFE PRODUCTION MODE *** ")
+    print("   BATTLE CHESS ASSET GENERATOR v4.0   ")
+    print("   *** QUOTA-SAFE + AUTO-COMPRESS *** ")
     print("=========================================")
     
     default_theme = "obsidian_gothic"
@@ -334,7 +401,6 @@ def main():
     theme_title = "".join([c for c in theme_title if c.isalnum() or c in ('_', '-')]).lower()
     
     # 1. UPDATE MANIFEST IMMEDIATELY
-    # This ensures the theme shows up in the frontend even if the script crashes later.
     base_dir = os.path.join("assets", theme_title)
     pieces_dir = os.path.join(base_dir, "pieces")
     video_dir = os.path.join(base_dir, "videos")
@@ -384,6 +450,10 @@ def main():
         generate_animations(base_dir, video_dir, pieces_dir, temp_dir, board_path=board_png, anim_desc=anim_desc, piece_desc=piece_desc)
     else:
         print("❌ Board generation failed. Exiting.")
+
+    # 3. Compression Step
+    if os.path.exists(video_dir):
+        compress_new_assets(video_dir)
 
     print("\n✅ GENERATION COMPLETE!")
     print(f"   Run 'python -m http.server' and open the updated game.html")
