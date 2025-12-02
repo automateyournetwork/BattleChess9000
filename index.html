@@ -169,7 +169,8 @@
         }
     </style>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/ r128/three.min.js"></script>
+    <!-- FIXED: no stray space in this URL -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -272,18 +273,28 @@
         <div id="status">Waiting for game start...</div>
 
         <!-- Share link for online mode -->
-        <div id="share-link-wrapper" style="margin-top:10px; display:none; pointer-events:auto;">
-            <span style="color:#888; font-size:12px; display:block;">Send this link to your friend:</span>
-            <div style="display:flex; justify-content:center; gap:6px; margin-top:5px;">
-                <input id="share-link-input"
-                       readonly
-                       style="padding:5px; font-size:12px; width:70%; max-width:420px; text-align:center; border-radius:4px; border:1px solid #444; background:#111; color:#ccc;"
-                       onclick="this.select();">
-                <button id="copy-link-btn"
-                        style="padding:5px 10px; font-size:12px; border-radius:4px; border:1px solid #555; background:#333; color:#eee; cursor:pointer; pointer-events:auto;"
-                        onclick="copyShareLink()">Copy</button>
-            </div>
-            <div id="copy-link-status" style="color:#5ccc5c; font-size:11px; margin-top:3px;"></div>
+        <div id="share-link-wrapper"
+             style="margin-top:10px; display:none; pointer-events:auto; text-align:center;">
+
+            <span style="color:#888; font-size:12px; display:block; margin-bottom:6px;">
+                Send this link to your friend:
+            </span>
+        
+            <button id="copy-link-btn"
+                    onclick="copyShareLink()"
+                    style="display:inline-block; width:auto; padding:6px 14px; font-size:12px;
+                           border-radius:4px; border:1px solid #555;
+                           background:#333; color:#eee; cursor:pointer;">
+                📋 Copy Invite Link
+            </button>
+        
+            <input id="share-link-input"
+                   type="text"
+                   readonly
+                   style="position:absolute; left:-9999px; opacity:0;">
+        
+            <div id="copy-link-status"
+                 style="color:#5ccc5c; font-size:11px; margin-top:6px;"></div>
         </div>
     </div>
 
@@ -321,6 +332,7 @@
         let CURRENT_THEME = '';
         let PLAYER_COLOR = 'w';
         let PLAYER_NAME = 'Guest';
+        let CURRENT_SHARE_LINK = "";
 
         // Game modes
         let GAME_MODE = 'ai';      // 'ai' or 'pvp'
@@ -394,14 +406,16 @@
                         sel.add(opt);
                     });
 
-                    // If URL has ?theme=xyz, lock to that theme for joiners
                     const url = new URL(window.location.href);
                     const forcedTheme = url.searchParams.get('theme');
+                    const forcedRoom  = url.searchParams.get('room');
 
-                    if (forcedTheme && themes.includes(forcedTheme)) {
+                    // Only lock if this is a joiner (room+theme in URL)
+                    if (forcedRoom && forcedTheme && themes.includes(forcedTheme)) {
                         sel.value = forcedTheme;
-                        sel.disabled = true; // locked to host's theme
+                        sel.disabled = true;
                     } else {
+                        sel.disabled = false;
                         sel.value = themes[themes.length - 1]; // default to last
                     }
                 })
@@ -504,30 +518,44 @@
 
         // ---------- COPY SHARE LINK ----------
         function copyShareLink() {
-            const input = document.getElementById('share-link-input');
             const status = document.getElementById('copy-link-status');
-            if (!input || !input.value) return;
-
-            input.select();
-            input.setSelectionRange(0, 99999);
-
+            const text = CURRENT_SHARE_LINK || (document.getElementById('share-link-input')?.value || "");
+        
+            if (!text) {
+                if (status) status.innerText = "No invite link yet.";
+                return;
+            }
+        
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(input.value)
+                navigator.clipboard.writeText(text)
                     .then(() => {
-                        status.innerText = "Link copied!";
-                        setTimeout(() => { status.innerText = ""; }, 2000);
+                        if (status) {
+                            status.innerText = "Link copied!";
+                            setTimeout(() => { status.innerText = ""; }, 2000);
+                        }
                     })
-                    .catch(() => {
-                        document.execCommand('copy');
-                        status.innerText = "Link copied!";
-                        setTimeout(() => { status.innerText = ""; }, 2000);
-                    });
+                    .catch(() => fallbackCopy(text, status));
             } else {
-                document.execCommand('copy');
-                status.innerText = "Link copied!";
-                setTimeout(() => { status.innerText = ""; }, 2000);
+                fallbackCopy(text, status);
             }
         }
+
+        function fallbackCopy(text, statusEl) {
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            temp.style.position = "fixed";
+            temp.style.left = "-9999px";
+            document.body.appendChild(temp);
+            temp.select();
+            try { document.execCommand('copy'); } catch(e) {}
+            document.body.removeChild(temp);
+        
+            if (statusEl) {
+                statusEl.innerText = "Link copied!";
+                setTimeout(() => { statusEl.innerText = ""; }, 2000);
+            }
+        }
+
 
         // ---------- GAME START ----------
         function startGame() {
@@ -593,12 +621,15 @@
                 ROOM_ID = Math.random().toString(36).substring(2, 8).toUpperCase();
                 IS_HOST = true;
                             
-                // include the CURRENT_THEME in the link
-                url.searchParams.set('room', ROOM_ID);
+                // IMPORTANT: use a COPY of the URL so we don't mutate the real page URL
+                const shareUrl = new URL(window.location.href);
+                shareUrl.searchParams.set('room', ROOM_ID);
                 if (CURRENT_THEME) {
-                    url.searchParams.set('theme', CURRENT_THEME);
+                    shareUrl.searchParams.set('theme', CURRENT_THEME);
                 }
-                const shareLink = url.toString();
+                const shareLink = shareUrl.toString();
+                CURRENT_SHARE_LINK = shareLink;
+
                 const shareInput = document.getElementById('share-link-input');
                 shareInput.value = shareLink;
                 document.getElementById('share-link-wrapper').style.display = 'block';
