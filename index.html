@@ -193,10 +193,17 @@
             <select id="theme-select"><option disabled selected value="">Loading themes...</option></select>
             
             <label style="margin-top:15px; display:block">Play As</label>
-            <div class="toggle-group">
+            <div class="toggle-group" id="color-toggle-group">
                 <button class="toggle-btn active" onclick="setPlayerColor('w')">White</button>
                 <button class="toggle-btn" onclick="setPlayerColor('b')">Black</button>
             </div>
+
+            <label style="margin-top:15px; display:block">Mode</label>
+            <div class="toggle-group" id="mode-toggle-group">
+                <button class="toggle-btn active" onclick="setGameMode('ai')">Vs AI</button>
+                <button class="toggle-btn" onclick="setGameMode('pvp')">Vs Friend (Online)</button>
+            </div>
+
             <button onclick="startGame()" style="margin-top:20px; background: #28a745; border:none;">Start Battle</button>
         </div>
     </div>
@@ -263,6 +270,15 @@
         <h1>Battle Chess AI</h1>
         <div id="player-display"></div>
         <div id="status">Waiting for game start...</div>
+
+        <!-- Share link for online mode -->
+        <div id="share-link-wrapper" style="margin-top:10px; display:none;">
+            <span style="color:#888; font-size:12px; display:block;">Send this link to your friend:</span>
+            <input id="share-link-input"
+                   readonly
+                   style="margin-top:5px; padding:5px; font-size:12px; width:80%; max-width:500px; text-align:center; border-radius:4px; border:1px solid #444; background:#111; color:#ccc;"
+                   onclick="this.select();">
+        </div>
     </div>
 
     <div id="check-alert">CHECK!</div>
@@ -280,6 +296,18 @@
         let CURRENT_THEME = '';
         let PLAYER_COLOR = 'w';
         let PLAYER_NAME = 'Guest';
+
+        // Game modes
+        let GAME_MODE = 'ai';      // 'ai' or 'pvp'
+        let ROOM_ID = null;
+        let IS_HOST = false;
+        let socket = null;
+        let joinTimeout = null;
+        const JOIN_TIMEOUT_MS = 180000; // 180 seconds
+
+        // TODO: replace with your Cloud Run WebSocket endpoint
+        const WS_URL = "wss://battlechess9000-multiplayer-service-960937205198.us-central1.run.app";
+
         const BOARD_SQUARE_SIZE = 10;
         const BOARD_OFFSET = (8 * BOARD_SQUARE_SIZE) / 2 - (BOARD_SQUARE_SIZE / 2);
         let ASSETS_PATH = '';
@@ -341,11 +369,32 @@
                 });
         }
 
+        function setGameMode(mode) {
+            GAME_MODE = mode;
+            const modeGroup = document.getElementById('mode-toggle-group');
+            if (!modeGroup) return;
+            const btns = modeGroup.querySelectorAll('.toggle-btn');
+            btns.forEach(b => b.classList.remove('active'));
+            if (mode === 'ai') {
+                btns[0].classList.add('active');
+                document.getElementById('share-link-wrapper').style.display = 'none';
+            } else {
+                btns[1].classList.add('active');
+            }
+        }
+
+        function refreshColorToggleUI() {
+            const group = document.getElementById('color-toggle-group');
+            if (!group) return;
+            const btns = group.querySelectorAll('.toggle-btn');
+            btns.forEach(b => b.classList.remove('active'));
+            if (PLAYER_COLOR === 'w') btns[0].classList.add('active');
+            else btns[1].classList.add('active');
+        }
+
         function setPlayerColor(c) {
             PLAYER_COLOR = c;
-            const btns = document.querySelectorAll('.toggle-btn');
-            btns.forEach(b => b.classList.remove('active'));
-            if(c === 'w') btns[0].classList.add('active'); else btns[1].classList.add('active');
+            refreshColorToggleUI();
         }
 
         function startGame() {
@@ -367,8 +416,10 @@
             
             buildSimpleBoard();
             initPieces();
-            
+
             const isMobile = window.innerWidth < 768;
+
+            // Initial camera orientation based on currently selected color
             if (PLAYER_COLOR === 'w') { 
                 const zPos = isMobile ? 110 : 80;
                 const yPos = isMobile ? 80 : 60;
@@ -381,9 +432,132 @@
                 camera.lookAt(0,0,0); 
                 controls.target.set(0,0,0); 
             }
-            
+
             updateStatus();
-            if(PLAYER_COLOR === 'b') setTimeout(makeAIMove, 1000);
+
+            if (GAME_MODE === 'pvp') {
+                setupMultiplayerRoom();
+            } else {
+                // Vs AI
+                if(PLAYER_COLOR === 'b') setTimeout(makeAIMove, 1000);
+            }
+        }
+
+        function setupMultiplayerRoom() {
+            const url = new URL(window.location.href);
+            const existingRoom = url.searchParams.get('room');
+
+            if (existingRoom) {
+                // JOINER
+                ROOM_ID = existingRoom;
+                IS_HOST = false;
+                document.getElementById('status').innerText = "Joining your friend's game...";
+                document.getElementById('share-link-wrapper').style.display = 'none';
+            } else {
+                // HOST
+                ROOM_ID = Math.random().toString(36).substring(2, 8).toUpperCase();
+                IS_HOST = true;
+
+                url.searchParams.set('room', ROOM_ID);
+                const shareLink = url.toString();
+                const shareInput = document.getElementById('share-link-input');
+                shareInput.value = shareLink;
+                document.getElementById('share-link-wrapper').style.display = 'block';
+
+                document.getElementById('status').innerText = "Share the link and waiting for your friend to join...";
+            }
+
+            initMultiplayerConnection();
+        }
+
+        function initMultiplayerConnection() {
+            if (!WS_URL || WS_URL.includes("YOUR-WEBSOCKET-ENDPOINT")) {
+                console.warn("WS_URL is not set. Multiplayer won't work until you configure it.");
+                document.getElementById('status').innerText = "Multiplayer not configured. Falling back to VS AI.";
+                GAME_MODE = 'ai';
+                document.getElementById('share-link-wrapper').style.display = 'none';
+                if (PLAYER_COLOR === 'b') setTimeout(makeAIMove, 1000);
+                return;
+            }
+
+            socket = new WebSocket(WS_URL);
+
+            socket.onopen = () => {
+                socket.send(JSON.stringify({
+                    type: 'join',
+                    roomId: ROOM_ID,
+                    name: PLAYER_NAME
+                }));
+
+                if (IS_HOST) {
+                    joinTimeout = setTimeout(() => {
+                        alert("No one joined your room within 3 minutes. Switching to VS AI mode.");
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.close();
+                        }
+                        socket = null;
+                        GAME_MODE = 'ai';
+                        document.getElementById('share-link-wrapper').style.display = 'none';
+                        document.getElementById('status').innerText = "No player joined. VS AI mode activated.";
+                        if (PLAYER_COLOR === 'b' && !game.game_over()) {
+                            setTimeout(makeAIMove, 1000);
+                        }
+                    }, JOIN_TIMEOUT_MS);
+                } else {
+                    document.getElementById('status').innerText = "Connected. Waiting for host to start...";
+                }
+            };
+
+            socket.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+
+                if (msg.type === 'start') {
+                    // Server randomizes colors; we obey
+                    if (joinTimeout) clearTimeout(joinTimeout);
+                    PLAYER_COLOR = msg.color; // 'w' or 'b'
+                    refreshColorToggleUI();
+
+                    // Re-orient camera based on assigned color
+                    const isMobile = window.innerWidth < 768;
+                    if (PLAYER_COLOR === 'w') {
+                        const zPos = isMobile ? 110 : 80;
+                        const yPos = isMobile ? 80 : 60;
+                        camera.position.set(0, yPos, zPos);
+                        camera.lookAt(0,0,0);
+                    } else {
+                        const zPos = isMobile ? -110 : -80;
+                        const yPos = isMobile ? 80 : 60;
+                        camera.position.set(0, yPos, zPos);
+                        camera.lookAt(0,0,0);
+                        controls.target.set(0,0,0);
+                    }
+
+                    document.getElementById('status').innerText = 
+                        "Game started! " + (game.turn() === 'w' ? 'White' : 'Black') + " to move.";
+                } else if (msg.type === 'move') {
+                    const move = msg.move;
+                    game.move(move);
+                    handleMoveVisuals(move, () => {
+                        updateStatus();
+                    });
+                } else if (msg.type === 'error') {
+                    alert(msg.message || "Multiplayer error");
+                    document.getElementById('status').innerText = "Multiplayer error.";
+                }
+            };
+
+            socket.onclose = () => {
+                if (!game.game_over() && GAME_MODE === 'pvp') {
+                    document.getElementById('status').innerText = "Connection lost.";
+                }
+            };
+
+            socket.onerror = (err) => {
+                console.error("WebSocket error", err);
+                if (GAME_MODE === 'pvp') {
+                    document.getElementById('status').innerText = "WebSocket error.";
+                }
+            };
         }
 
         function buildSimpleBoard() {
@@ -600,13 +774,27 @@
                 
                 handleMoveVisuals(move, () => {
                     updateStatus();
+
                     if (game.in_checkmate() || game.in_draw()) {
-                         if(game.in_checkmate()) playCheckmateAnimation(move);
-                         else triggerGameOver();
-                    } else if(!game.game_over()) {
-                        isAIThinking = true;
-                        document.getElementById('status').innerText = "AI is thinking...";
-                        setTimeout(makeAIMove, 800);
+                        if(game.in_checkmate()) playCheckmateAnimation(move);
+                        else triggerGameOver();
+                        return;
+                    }
+
+                    if (GAME_MODE === 'ai') {
+                        if(!game.game_over()) {
+                            isAIThinking = true;
+                            document.getElementById('status').innerText = "AI is thinking...";
+                            setTimeout(makeAIMove, 800);
+                        }
+                    } else if (GAME_MODE === 'pvp') {
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.send(JSON.stringify({
+                                type: 'move',
+                                roomId: ROOM_ID,
+                                move: move
+                            }));
+                        }
                     }
                 });
             }
@@ -643,7 +831,7 @@
                 updateCaptures(move.captured, move.color);
             }
 
-            if (move.flags.includes('k') || move.flags.includes('q')) {
+            if (move.flags && (move.flags.includes('k') || move.flags.includes('q'))) {
                 let rookSrc, rookDst;
                 if (move.color === 'w') {
                     rookSrc = move.flags.includes('k') ? 'h1' : 'a1';
