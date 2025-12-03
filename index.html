@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- Mobile-friendly viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gemini Battle Chess - Powered by Google Gemini, Nano Banana 3, and Veo3</title>
+    <title>Gemini Battle Chess 9000</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-user-select: none; }
         
@@ -50,7 +50,7 @@
             color: white; pointer-events: auto; overflow-y: auto;
         }
         .modal.active { display: flex; }
-        
+
         .menu-box { 
             background: #1a1a1a; padding: 40px; border: 1px solid #333; 
             box-shadow: 0 0 50px rgba(0,0,0,1); text-align: center; border-radius: 8px;
@@ -58,19 +58,51 @@
             position: relative;
         }
 
-        /* END GAME SCROLLABLE CONTENT */
-        .endgame-content {
-            max-height: 80vh;
-            overflow-y: auto;
-            text-align: left;
-            padding-right: 10px;
+        /* AVATAR GRID STYLES */
+        .avatar-grid { 
+            display: grid; 
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px; 
+            margin: 15px 0;
+            background: #111;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
         }
+        .avatar-option { 
+            background: #222; border: 2px solid #333; border-radius: 4px; padding: 2px; 
+            cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center;
+            aspect-ratio: 1 / 1;
+        }
+        .avatar-option:hover { border-color: #666; background: #333; }
+        .avatar-option.selected { border-color: #28a745; background: #1a3a1a; box-shadow: 0 0 10px #28a745; }
+        .avatar-option img { width: 100%; height: 100%; object-fit: contain; }
 
-        /* Scrollbar styling */
-        .endgame-content::-webkit-scrollbar { width: 8px; }
-        .endgame-content::-webkit-scrollbar-track { background: #111; }
-        .endgame-content::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        /* LOBBY LIST */
+        .player-list { 
+            list-style: none; padding: 0; margin: 20px 0; 
+            max-height: 250px; overflow-y: auto; border: 1px solid #333;
+        }
+        .player-item { 
+            display: flex; align-items: center; justify-content: space-between; 
+            padding: 10px; background: #222; border-bottom: 1px solid #333;
+        }
+        .player-item:hover { background: #333; }
+        .player-info { display: flex; align-items: center; gap: 10px; text-align: left; }
+        .player-stats { font-size: 11px; color: #888; display: block; }
         
+        .challenge-btn { 
+            width: auto; padding: 5px 15px; background: #4da6ff; border: none; 
+            color: #000; font-weight: bold; font-size: 12px; cursor: pointer;
+        }
+        .challenge-btn:hover { background: #fff; }
+
+        /* CHALLENGE POPUP */
+        .challenge-alert {
+            background: #4da6ff; color: #000; padding: 20px; border-radius: 8px;
+            animation: pulse-alert 1s infinite;
+        }      
+
         select, button, input[type="text"], .toggle-group { 
             display: block; width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box;
             font-size: 16px; background: #333; color: white; border: 1px solid #555; 
@@ -81,10 +113,12 @@
 
         button { background: #444; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
         button:hover { background: #666; }
-        .toggle-group { display: flex; gap: 10px; background: transparent; border: none; padding: 0; }
-        .toggle-btn { flex: 1; background: #222; border: 1px solid #444; padding: 15px; }
-        .toggle-btn.active { background: #eee; color: black; border-color: white; }
-
+        
+        /* Main Button Group */
+        .main-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+        .action-row { display: flex; gap: 10px; }
+        .action-btn { flex: 1; border: none; }
+        
         .promo-options { display: flex; gap: 20px; margin-top:20px; justify-content: center;}
         .promo-piece { 
             width: 60px; height: 60px; background: #333; border: 2px solid #555;
@@ -92,18 +126,6 @@
             font-size: 30px; cursor: pointer; color: #fff;
         }
         .promo-piece:hover { background: #555; border-color: white; }
-
-        /* PROMPTS DISPLAY */
-        .prompt-block {
-            background: #000; border: 1px solid #333; padding: 15px; margin-bottom: 20px;
-            font-family: monospace; font-size: 12px; color: #0f0; white-space: pre-wrap;
-            text-align: left;
-        }
-        h3 { border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 30px; color: #ddd; }
-        p { line-height: 1.6; color: #bbb; }
-        .highlight { color: #fff; font-weight: bold; }
-        a { color: #4da6ff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
 
         #battle-overlay { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -116,56 +138,42 @@
         #skip-btn { width: auto; display: inline-block; background: transparent; border: 2px solid white; margin-top: 20px; }
         #skip-btn:hover { background: white; color: black; }
 
-        /* --- MOBILE / RESPONSIVE STYLES --- */
+        /* Invite Link Input */
+        .link-box {
+            background: #000; border: 1px solid #4da6ff; color: #4da6ff;
+            padding: 10px; width: 100%; text-align: center; font-family: monospace;
+            margin-bottom: 15px; cursor: pointer;
+        }
+
+        /* END GAME SCROLLABLE CONTENT */
+        .endgame-content {
+            max-height: 80vh;
+            overflow-y: auto;
+            text-align: left;
+            padding-right: 10px;
+        }
+        .endgame-content::-webkit-scrollbar { width: 8px; }
+        .endgame-content::-webkit-scrollbar-track { background: #111; }
+        .endgame-content::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        .prompt-block {
+            background: #000; border: 1px solid #333; padding: 15px; margin-bottom: 20px;
+            font-family: monospace; font-size: 12px; color: #0f0; white-space: pre-wrap;
+            text-align: left;
+        }
+        h3 { border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 30px; color: #ddd; }
+        p { line-height: 1.6; color: #bbb; }
+        .highlight { color: #fff; font-weight: bold; }
+        a { color: #4da6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
         @media (max-width: 768px) {
-            /* Shrink the HUD text */
-            h1 { font-size: 16px; letter-spacing: 2px; }
-            #status { font-size: 14px; }
-            #player-display { font-size: 12px; }
-
-            /* Make modals fit nicely on phone screens */
-            .menu-box { 
-                width: 95%; 
-                padding: 15px; 
-                max-height: 95vh; 
-                overflow-y: auto;
-            }
-            
-            /* Adjust buttons and inputs for touch targets */
-            button, select, input[type="text"], .toggle-btn {
-                padding: 15px;
-                font-size: 14px;
-            }
-
-            /* Move Capture Trackers to bottom to save side-width */
-            .tracker {
-                flex-direction: row;
-                width: 100%;
-                height: 40px;
-                top: auto;
-                bottom: 10px;
-                padding: 0;
-                justify-content: center;
-                gap: 5px;
-            }
+            .menu-box { width: 95%; padding: 15px; max-height: 95vh; overflow-y: auto; }
+            .avatar-grid { grid-template-columns: repeat(4, 1fr); }
+            .tracker { flex-direction: row; width: 100%; height: 40px; top: auto; bottom: 10px; padding: 0; justify-content: center; gap: 5px; }
             .tracker-left { left: 0; bottom: 50px; align-items: center; }
             .tracker-right { right: 0; bottom: 10px; align-items: center; }
-            
             .capture-icon { width: 35px; height: 35px; }
-
-            /* Resize the massive CHECK alert */
-            #check-alert {
-                font-size: 40px;
-                padding: 10px 20px;
-                border-width: 3px;
-                width: 80%;
-                text-align: center;
-            }
-
-            /* Make promotion pieces tappable */
-            .promo-piece { width: 50px; height: 50px; font-size: 25px; }
-            
-            .endgame-content { max-height: 60vh; }
+            #check-alert { font-size: 40px; width: 80%; }
         }
     </style>
 
@@ -179,25 +187,74 @@
     <!-- START MENU -->
     <div id="start-menu" class="modal active">
         <div class="menu-box">
-            <!-- INSPIRATION IMAGE -->
-            <img src="battle_chess_1988.png" alt="1988 Inspiration" style="max-width: 100%; max-height: 180px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #444; box-shadow: 0 0 15px rgba(0,0,0,0.8);">
-            
             <h2 style="margin-top:0; margin-bottom: 5px;">BATTLE CHESS 9000</h2>
             <p style="color: #666; font-size: 13px; font-style: italic; margin-top: 0; margin-bottom: 20px;">
-                Inspired by Battle Chess for DOS 1988
+                "It's not just a game, it's a battle."
             </p>
             
             <input type="text" id="player-name-input" placeholder="ENTER YOUR NAME" maxlength="15">
             
-            <label style="margin-top: 20px;">Select Theme</label>
-            <select id="theme-select"><option disabled selected value="">Loading themes...</option></select>
+            <label style="margin-top: 15px; color: #888; font-size: 14px;">Select Game Theme</label>
+            <select id="theme-select" onchange="updateAvatarGrid()"><option disabled selected value="">Loading themes...</option></select>
             
-            <label style="margin-top:15px; display:block">Play As</label>
-            <div class="toggle-group">
-                <button class="toggle-btn active" onclick="setPlayerColor('w')">White</button>
-                <button class="toggle-btn" onclick="setPlayerColor('b')">Black</button>
+            <label style="margin-top: 15px; color: #888; font-size: 14px;">Choose Avatar (From Selected Theme)</label>
+            <div id="avatar-grid" class="avatar-grid"></div>
+            
+            <div class="main-actions">
+                <div class="action-row">
+                    <button onclick="joinLobby()" style="background:#4da6ff; color:black; flex:2;">ENTER ONLINE LOBBY</button>
+                    <button onclick="createPrivateGame()" style="background:#8a2be2; color:white; flex:1;">INVITE LINK</button>
+                </div>
+                <div class="action-row">
+                    <button class="action-btn" onclick="startGameAI()">VS AI (SOLO)</button>
+                    <button class="action-btn" onclick="startGameLocal()">VS FRIEND (LOCAL)</button>
+                </div>
             </div>
-            <button onclick="startGame()" style="margin-top:20px; background: #28a745; border:none;">Start Battle</button>
+        </div>
+    </div>
+
+    <!-- LOBBY MENU -->
+    <div id="lobby-menu" class="modal">
+        <div class="menu-box">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px; margin-bottom:10px;">
+                <h2 style="margin:0;">LOBBY</h2>
+                <button onclick="disconnectSocket()" style="width:auto; padding:5px 10px; font-size:12px; background:#444;">Exit</button>
+            </div>
+            
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:15px; background: #222; padding: 10px; border-radius: 4px;">
+                <img id="my-avatar-display" src="" style="width:40px; height:40px; object-fit: contain;">
+                <h3 id="my-name-display" style="margin:0; color:#28a745;"></h3>
+            </div>
+
+            <p style="text-align: left; color: #888; font-size: 12px; margin-bottom: 5px;">ONLINE COMMANDERS:</p>
+            <ul id="lobby-list" class="player-list">
+                <li style="padding:10px; color:#666;">Connecting to server...</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- INVITE LINK WAITING ROOM -->
+    <div id="invite-menu" class="modal">
+        <div class="menu-box">
+            <h2 style="color: #8a2be2;">PRIVATE GAME</h2>
+            <p>Share this link with your friend to start.</p>
+            <input type="text" id="invite-link-box" class="link-box" readonly onclick="this.select(); document.execCommand('copy'); alert('Copied!')">
+            <p style="font-size: 12px; color: #666;">Waiting for opponent to join...</p>
+            <div class="action-row">
+                <button onclick="disconnectSocket()" style="background:#444;">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHALLENGE POPUP -->
+    <div id="challenge-modal" class="modal">
+        <div class="menu-box challenge-alert">
+            <h2>⚔️ CHALLENGE! ⚔️</h2>
+            <p id="challenger-name">Player X wants to battle!</p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                <button onclick="acceptChallenge()" style="background:white; color:black; flex:1;">ACCEPT</button>
+                <button onclick="declineChallenge()" style="background:#222; color:white; flex:1;">DECLINE</button>
+            </div>
         </div>
     </div>
 
@@ -266,7 +323,6 @@
     </div>
 
     <div id="check-alert">CHECK!</div>
-
     <div id="tracker-w" class="tracker tracker-left"></div>
     <div id="tracker-b" class="tracker tracker-right"></div>
 
@@ -277,6 +333,10 @@
     </div>
 
     <script>
+        // --- CONFIG & GLOBALS ---
+        // Change this to ws://localhost:8080 if running server locally
+        const WS_URL = "wss://battlechess9000-multiplayer-service-960937205198.us-central1.run.app"; 
+        
         let CURRENT_THEME = '';
         let PLAYER_COLOR = 'w';
         let PLAYER_NAME = 'Guest';
@@ -284,18 +344,23 @@
         const BOARD_OFFSET = (8 * BOARD_SQUARE_SIZE) / 2 - (BOARD_SQUARE_SIZE / 2);
         let ASSETS_PATH = '';
 
-        // Themes that are under development / coming soon
-        const IN_PROGRESS_THEMES = [
-            "super_mario_world",
-            "justice_league_vs_legion_of_doom"
-        ];
-
         const game = new Chess();
+        let socket = null;
+        let myClientId = null;
+        let currentRoomId = null;
+        let selectedAvatar = 'w_k'; 
+        let isMultiplayer = false;
+        let isAIEnabled = false; 
+        let isAIThinking = false;
+        let pendingChallengeId = null;
+        
         let selectedSquare = null;
         let selectedMesh = null;
-        let isAIThinking = false;
         let pendingPromotionMove = null;
 
+        const IN_PROGRESS_THEMES = ["super_mario_world", "justice_league_vs_legion_of_doom"];
+
+        // --- THREE.JS SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x111111);
         scene.fog = new THREE.Fog(0x111111, 40, 300);
@@ -321,10 +386,20 @@
         const piecesMap = {};
         const pieceCache = {};
 
-        window.onload = function() { loadThemes(); };
+        // --- INITIALIZATION ---
+        window.onload = function() { 
+            loadThemes().then(() => {
+                // Check if invite link
+                const urlParams = new URLSearchParams(window.location.search);
+                const roomId = urlParams.get('room');
+                if (roomId) {
+                    joinPrivateGame(roomId);
+                }
+            });
+        };
 
         function loadThemes() {
-            fetch('assets/themes.json')
+            return fetch('assets/themes.json')
                 .then(r => {
                     if (!r.ok) throw new Error("Manifest not found");
                     return r.json();
@@ -332,125 +407,281 @@
                 .then(themes => {
                     const sel = document.getElementById('theme-select');
                     sel.innerHTML = '';
-                
+                    
                     if (!themes || themes.length === 0) {
-                        const opt = document.createElement('option');
-                        opt.text = "No themes found";
-                        opt.disabled = true;
-                        opt.selected = true;
-                        sel.add(opt);
+                        sel.add(new Option("No themes found", "", true, true));
                         return;
                     }
-                
-                    // Split themes into ready + in-progress
+
                     const readyThemes = themes.filter(t => !IN_PROGRESS_THEMES.includes(t));
                     const inProgressThemes = themes.filter(t => IN_PROGRESS_THEMES.includes(t));
-                
-                    const prettyName = (t) => t.replace(/_/g, ' ').toUpperCase();
-                
-                    // === READY TO GO SECTION ===
-                    if (readyThemes.length > 0) {
-                        const labelReady = document.createElement('option');
-                        labelReady.text = "=== READY TO PLAY ===";
-                        labelReady.disabled = true;
-                        labelReady.selected = true;
-                        sel.add(labelReady);
-                    
-                        readyThemes.forEach(t => {
-                            const opt = document.createElement('option');
-                            opt.value = t;
-                            opt.text = prettyName(t);
-                            sel.add(opt);
-                        });
-                    }
-                
-                    // === UNDER DEVELOPMENT SECTION (PLAYABLE BUT WIP) ===
-                    if (inProgressThemes.length > 0) {
-                        const labelInProgress = document.createElement('option');
-                        labelInProgress.text = "=== UNDER DEVELOPMENT (WIP THEMES) ===";
-                        labelInProgress.disabled = true;
-                        if (readyThemes.length === 0) labelInProgress.selected = true;
-                        sel.add(labelInProgress);
-                    
-                        inProgressThemes.forEach(t => {
-                            const opt = document.createElement('option');
-                            opt.value = t;
-                            opt.text = `${prettyName(t)} [WIP – assets/animations not final]`;
-                            opt.disabled = false;  // still playable
-                            sel.add(opt);
-                        });
-                    }
-                
-                    // Default selection: first non-label option if possible
-                    for (let i = 0; i < sel.options.length; i++) {
-                        if (!sel.options[i].disabled) {
-                            sel.selectedIndex = i;
-                            break;
-                        }
-                    }
+                    const pretty = (t) => t.replace(/_/g, ' ').toUpperCase();
+
+                    if (readyThemes.length > 0) readyThemes.forEach(t => sel.add(new Option(pretty(t), t)));
+                    if (inProgressThemes.length > 0) inProgressThemes.forEach(t => sel.add(new Option(pretty(t) + " [WIP]", t)));
+
+                    sel.selectedIndex = 0;
+                    updateAvatarGrid(); 
                 })
                 .catch(e => {
-                    console.error("Theme Load Error:", e);
-                    const sel = document.getElementById('theme-select');
-                    sel.innerHTML = '';
-                    const opt = document.createElement('option');
-                    opt.disabled = true;
-                    opt.selected = true;
-                    opt.text = "Generate assets first!";
-                    sel.add(opt);
+                    console.error(e);
+                    document.getElementById('theme-select').innerHTML = '<option>Run asset_generator.py first!</option>';
                 });
         }
 
-        function setPlayerColor(c) {
-            PLAYER_COLOR = c;
-            const btns = document.querySelectorAll('.toggle-btn');
-            btns.forEach(b => b.classList.remove('active'));
-            if(c === 'w') btns[0].classList.add('active'); else btns[1].classList.add('active');
+        // --- AVATAR & SETUP LOGIC ---
+        function updateAvatarGrid() {
+            const theme = document.getElementById('theme-select').value;
+            const safeTheme = theme || 'medieval_classic'; 
+            const grid = document.getElementById('avatar-grid');
+            grid.innerHTML = '';
+            
+            const pieces = [
+                'w_k', 'w_q', 'w_r', 'w_b', 'w_n', 'w_p',
+                'b_k', 'b_q', 'b_r', 'b_b', 'b_n', 'b_p'
+            ];
+            
+            const map = {
+                'w_k': 'white_king', 'w_q': 'white_queen', 'w_r': 'white_rook', 'w_b': 'white_bishop', 'w_n': 'white_knight', 'w_p': 'white_pawn',
+                'b_k': 'black_king', 'b_q': 'black_queen', 'b_r': 'black_rook', 'b_b': 'black_bishop', 'b_n': 'black_knight', 'b_p': 'black_pawn'
+            };
+
+            pieces.forEach(code => {
+                const div = document.createElement('div');
+                div.className = `avatar-option ${code === selectedAvatar ? 'selected' : ''}`;
+                div.onclick = () => {
+                    selectedAvatar = code;
+                    document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected'));
+                    div.classList.add('selected');
+                };
+                
+                const img = document.createElement('img');
+                img.src = `assets/${safeTheme}/pieces/${map[code]}.png`;
+                img.onerror = function() { this.style.opacity = 0.3; }; 
+                div.appendChild(img);
+                grid.appendChild(div);
+            });
         }
 
-        function startGame() {
-            const sel = document.getElementById('theme-select');
+        function setupGameCommon() {
             const nameInput = document.getElementById('player-name-input');
+            const sel = document.getElementById('theme-select');
+            
+            if(!sel.value) { alert("Please select a theme first"); return false; }
+            if(IN_PROGRESS_THEMES.includes(sel.value)) alert("Note: This theme is WIP.");
 
-            if(!sel.value || sel.value === "") {
-                alert("Please select a valid theme. If none appear, run asset_generator.py first!");
-                return;
-            }
-        
-            // 🟡 Warn if they picked a WIP theme
-            if (IN_PROGRESS_THEMES.includes(sel.value)) {
-                alert("Heads up: this theme is under development.\nSome assets or battle animations may be missing or not final.");
-            }
-        
             PLAYER_NAME = nameInput.value.trim() || "Commander";
-            document.getElementById('player-display').innerText = `COMMANDER: ${PLAYER_NAME.toUpperCase()}`;
-        
             CURRENT_THEME = sel.value;
             ASSETS_PATH = `assets/${CURRENT_THEME}/`;
-        
+            
             document.getElementById('start-menu').classList.remove('active');
-        
-            buildSimpleBoard();
-            initPieces();
-
-            const isMobile = window.innerWidth < 768;
-            if (PLAYER_COLOR === 'w') { 
-                const zPos = isMobile ? 110 : 80;
-                const yPos = isMobile ? 80 : 60;
-                camera.position.set(0, yPos, zPos); 
-                camera.lookAt(0,0,0); 
-            } else { 
-                const zPos = isMobile ? -110 : -80;
-                const yPos = isMobile ? 80 : 60;
-                camera.position.set(0, yPos, zPos); 
-                camera.lookAt(0,0,0); 
-                controls.target.set(0,0,0); 
-            }
-
-            updateStatus();
-            if(PLAYER_COLOR === 'b') setTimeout(makeAIMove, 1000);
+            
+            // Camera Default
+            camera.position.set(0, 60, 80);
+            camera.lookAt(0,0,0);
+            return true;
         }
 
+        function startGameAI() {
+            if(!setupGameCommon()) return;
+            initVisuals();
+            isMultiplayer = false;
+            isAIEnabled = true;
+            PLAYER_COLOR = 'w';
+            document.getElementById('player-display').innerText = `${PLAYER_NAME} VS AI (CPU)`;
+            updateStatus();
+        }
+
+        function startGameLocal() {
+            if(!setupGameCommon()) return;
+            initVisuals();
+            isMultiplayer = false;
+            isAIEnabled = false;
+            PLAYER_COLOR = 'w';
+            document.getElementById('player-display').innerText = `LOCAL PVP (HOTSEAT)`;
+            updateStatus();
+        }
+        
+        function initVisuals() {
+            game.reset();
+            while(scene.children.length > 0){ scene.remove(scene.children[0]); }
+            scene.add(ambientLight);
+            scene.add(spotLight);
+            buildSimpleBoard();
+            initPieces();
+        }
+
+        // --- MULTIPLAYER LOGIC ---
+        
+        function connectSocket() {
+            socket = new WebSocket(WS_URL);
+            socket.onmessage = (e) => handleNetworkMessage(JSON.parse(e.data));
+            socket.onclose = () => { 
+                alert("Disconnected."); 
+                // Only reload if we aren't already reloading
+                if (!window.isReloading) window.location.href = window.location.pathname; 
+            };
+            return socket;
+        }
+
+        function joinLobby() {
+            if(!setupGameCommon()) return;
+            
+            document.getElementById('lobby-menu').classList.add('active');
+            updateMyAvatarDisplay();
+
+            isMultiplayer = true;
+            isAIEnabled = false;
+            
+            const ws = connectSocket();
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'login', name: PLAYER_NAME, avatar: selectedAvatar }));
+            };
+        }
+
+        function createPrivateGame() {
+            if(!setupGameCommon()) return;
+
+            document.getElementById('invite-menu').classList.add('active');
+            isMultiplayer = true;
+            isAIEnabled = false;
+
+            const ws = connectSocket();
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'create_private', name: PLAYER_NAME, avatar: selectedAvatar }));
+            };
+        }
+
+        function joinPrivateGame(roomId) {
+            // Auto-setup with defaults if via link
+            const sel = document.getElementById('theme-select');
+            // Wait for themes if needed, but handled in onload promise
+            if(!sel.value && sel.options.length > 0) sel.selectedIndex = 0;
+            
+            setupGameCommon();
+            
+            isMultiplayer = true;
+            isAIEnabled = false;
+
+            const ws = connectSocket();
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'join_private', roomId: roomId, name: PLAYER_NAME, avatar: selectedAvatar }));
+            };
+        }
+
+        function disconnectSocket() {
+            if(socket) {
+                window.isReloading = true;
+                socket.close();
+            }
+            window.location.href = window.location.pathname; // Clear params
+        }
+        
+        function updateMyAvatarDisplay() {
+            const fullMap = {
+                'w_k': 'white_king', 'w_q': 'white_queen', 'w_r': 'white_rook', 'w_b': 'white_bishop', 'w_n': 'white_knight', 'w_p': 'white_pawn',
+                'b_k': 'black_king', 'b_q': 'black_queen', 'b_r': 'black_rook', 'b_b': 'black_bishop', 'b_n': 'black_knight', 'b_p': 'black_pawn'
+            };
+            document.getElementById('my-avatar-display').src = `${ASSETS_PATH}pieces/${fullMap[selectedAvatar] || 'white_king'}.png`;
+            document.getElementById('my-name-display').innerText = PLAYER_NAME;
+        }
+
+        function handleNetworkMessage(msg) {
+            if (msg.type === 'login_success') myClientId = msg.myId;
+            if (msg.type === 'lobby_update') renderLobbyList(msg.players);
+            
+            if (msg.type === 'private_created') {
+                // Show the link
+                const link = `${window.location.protocol}//${window.location.host}${window.location.pathname}?room=${msg.roomId}`;
+                document.getElementById('invite-link-box').value = link;
+            }
+
+            if (msg.type === 'challenge_received') {
+                pendingChallengeId = msg.fromId;
+                document.getElementById('challenger-name').innerText = `${msg.fromName} wants to battle!`;
+                document.getElementById('challenge-modal').classList.add('active');
+            }
+            
+            if (msg.type === 'error') {
+                alert(msg.message);
+                disconnectSocket();
+            }
+
+            if (msg.type === 'game_start') {
+                // Close all menus
+                document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+                
+                currentRoomId = msg.roomId;
+                PLAYER_COLOR = msg.color;
+                
+                document.getElementById('player-display').innerText = `VS ${msg.opponent}`;
+                
+                initVisuals(); // Build board
+                
+                // Camera
+                const isMobile = window.innerWidth < 768;
+                const y = isMobile ? 80 : 60;
+                const z = (PLAYER_COLOR === 'w') ? (isMobile ? 110 : 80) : (isMobile ? -110 : -80);
+                camera.position.set(0, y, z);
+                camera.lookAt(0,0,0);
+                
+                updateStatus();
+            }
+            if (msg.type === 'move') executeMove(msg.move, true);
+            
+             if (msg.type === 'opponent_disconnected') {
+                alert("Opponent disconnected!");
+                triggerGameOver("Opponent Disconnected");
+            }
+        }
+
+        function renderLobbyList(players) {
+            const list = document.getElementById('lobby-list');
+            list.innerHTML = '';
+            const opponents = players.filter(p => p.id !== myClientId);
+            
+            if (opponents.length === 0) {
+                list.innerHTML = '<li style="padding:20px; text-align:center; color:#666;">Waiting for players...</li>';
+                return;
+            }
+            
+            opponents.forEach(p => {
+                const li = document.createElement('li');
+                li.className = 'player-item';
+                
+                const fullMap = {
+                    'w_k': 'white_king', 'w_q': 'white_queen', 'w_r': 'white_rook', 'w_b': 'white_bishop', 'w_n': 'white_knight', 'w_p': 'white_pawn',
+                    'b_k': 'black_king', 'b_q': 'black_queen', 'b_r': 'black_rook', 'b_b': 'black_bishop', 'b_n': 'black_knight', 'b_p': 'black_pawn'
+                };
+                const avatarUrl = `assets/${CURRENT_THEME}/pieces/${fullMap[p.avatar] || 'white_pawn'}.png`;
+                
+                li.innerHTML = `
+                    <div class="player-info">
+                        <img src="${avatarUrl}" style="width:30px; height:30px; object-fit:contain;">
+                        <div>
+                            <div style="font-weight:bold; color:#fff;">${p.name}</div>
+                            <span class="player-stats">W:${p.stats.wins} L:${p.stats.losses}</span>
+                        </div>
+                    </div>
+                    <button class="challenge-btn" onclick="sendChallenge('${p.id}')">FIGHT</button>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function sendChallenge(targetId) {
+            socket.send(JSON.stringify({ type: 'challenge_request', targetId: targetId }));
+            alert("Challenge sent!");
+        }
+        function acceptChallenge() {
+            socket.send(JSON.stringify({ type: 'challenge_accept', targetId: pendingChallengeId }));
+        }
+        function declineChallenge() {
+            document.getElementById('challenge-modal').classList.remove('active');
+            pendingChallengeId = null;
+        }
+
+        // --- GAMEPLAY HELPERS ---
         function buildSimpleBoard() {
             const boardTexture = textureLoader.load(ASSETS_PATH + 'board_texture.png', (tex) => { tex.encoding = THREE.sRGBEncoding; });
             const boardGeo = new THREE.BoxGeometry(84, 1, 84);
@@ -560,18 +791,12 @@
             });
         }
 
-        // --- UNIFIED INPUT HANDLING (MOUSE + TOUCH + PEN) ---
+        // --- INTERACTION ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-
-        const inputState = {
-            isPointerDown: false,
-            startX: 0,
-            startY: 0
-        };
+        const inputState = { isPointerDown: false, startX: 0, startY: 0 };
 
         renderer.domElement.addEventListener('pointerdown', (e) => {
-            // Only react to primary button / touch
             if (e.button !== undefined && e.button !== 0) return;
             inputState.isPointerDown = true;
             inputState.startX = e.clientX;
@@ -581,32 +806,28 @@
         renderer.domElement.addEventListener('pointerup', (e) => {
             if (!inputState.isPointerDown) return;
             inputState.isPointerDown = false;
-
-            const dx = e.clientX - inputState.startX;
-            const dy = e.clientY - inputState.startY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            const threshold = (e.pointerType === 'touch') ? 12 : 5;
-
-            if (dist < threshold) {
-                onInteraction(e.clientX, e.clientY);
-            }
+            const dist = Math.sqrt(Math.pow(e.clientX - inputState.startX, 2) + Math.pow(e.clientY - inputState.startY, 2));
+            if (dist < 10) onInteraction(e.clientX, e.clientY);
         });
 
         function onInteraction(clientX, clientY) {
             if(document.getElementById('battle-overlay').style.display === 'flex') return;
-            if(isAIThinking || game.game_over() || game.turn() !== PLAYER_COLOR) return;
-
+            
+            // IF AI is enabled, block input when it's not my turn
+            if(isAIEnabled && game.turn() !== PLAYER_COLOR) return;
+            // IF Multiplayer, block input if not my turn
+            if(isMultiplayer && game.turn() !== PLAYER_COLOR) return;
+            // IF Local PvP, we allow both turns
+            
             mouse.x = (clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(clientY / window.innerHeight) * 2 + 1;
-            
             raycaster.setFromCamera(mouse, camera);
 
             const pieceIntersects = raycaster.intersectObjects(Object.values(piecesMap));
             if (pieceIntersects.length > 0) {
                 const mesh = pieceIntersects[0].object;
                 const square = mesh.userData.square;
-                if (game.get(square).color === PLAYER_COLOR) { selectPiece(square); return; }
+                if (game.get(square).color === game.turn()) { selectPiece(square); return; }
                 else if (selectedSquare) { attemptMove(square); return; }
             }
 
@@ -617,9 +838,7 @@
                 const fileIdx = Math.floor((target.x + BOARD_OFFSET + BOARD_SQUARE_SIZE/2) / BOARD_SQUARE_SIZE);
                 const rankIdx = Math.floor((target.z + BOARD_OFFSET + BOARD_SQUARE_SIZE/2) / BOARD_SQUARE_SIZE);
                 if (fileIdx >= 0 && fileIdx < 8 && rankIdx >= 0 && rankIdx < 8) {
-                    const file = String.fromCharCode(97 + fileIdx);
-                    const rank = 8 - rankIdx;
-                    attemptMove(file + rank);
+                    attemptMove(String.fromCharCode(97 + fileIdx) + (8 - rankIdx));
                 }
             }
         }
@@ -657,21 +876,46 @@
             }
         }
 
-        function executeMove(moveObj) {
-            const move = game.move(moveObj);
+        function executeMove(moveObj, isNetworkMove = false) {
+            let move;
+            if (isNetworkMove) {
+                move = game.move(moveObj);
+            } else {
+                move = game.move(moveObj);
+            }
+
             if (move) {
                 if(selectedMesh) selectedMesh.material.color.setHex(0xffffff);
                 selectedSquare = null; selectedMesh = null;
                 
+                // Send to Server if MP
+                if (isMultiplayer && !isNetworkMove && socket) {
+                    socket.send(JSON.stringify({ type: 'move', roomId: currentRoomId, move: moveObj }));
+                }
+                
                 handleMoveVisuals(move, () => {
                     updateStatus();
+                    
                     if (game.in_checkmate() || game.in_draw()) {
-                         if(game.in_checkmate()) playCheckmateAnimation(move);
-                         else triggerGameOver();
+                        if(game.in_checkmate()) {
+                            playCheckmateAnimation(move);
+                            if(isMultiplayer && !isNetworkMove && socket) {
+                                 socket.send(JSON.stringify({
+                                    type: 'game_over',
+                                    winnerName: game.turn() === 'w' ? 'Black' : 'White',
+                                    loserName: game.turn() === 'w' ? 'White' : 'Black'
+                                }));
+                            }
+                        } else {
+                            triggerGameOver();
+                        }
                     } else if(!game.game_over()) {
-                        isAIThinking = true;
-                        document.getElementById('status').innerText = "AI is thinking...";
-                        setTimeout(makeAIMove, 800);
+                        // AI LOGIC
+                        if(isAIEnabled && game.turn() !== PLAYER_COLOR) {
+                            isAIThinking = true;
+                            document.getElementById('status').innerText = "AI is thinking...";
+                            setTimeout(makeAIMove, 800);
+                        }
                     }
                 });
             }
@@ -693,20 +937,19 @@
                 updateStatus();
                 if (game.in_checkmate() || game.in_draw()) {
                     if (game.in_checkmate()) playCheckmateAnimation(bestMove);
-                    else triggerGameOver();
+                    else triggerGameOver(game.in_draw() ? "Draw" : "Game Over");
                 }
             });
         }
 
+        // --- ANIMATIONS & VISUALS ---
         function handleMoveVisuals(move, onComplete) {
             const originSquare = move.from;
             const destSquare = move.to;
             const pieceMesh = piecesMap[originSquare];
             const targetPos = squareToVector(destSquare);
 
-            if (move.captured) {
-                updateCaptures(move.captured, move.color);
-            }
+            if (move.captured) updateCaptures(move.captured, move.color);
 
             if (move.flags.includes('k') || move.flags.includes('q')) {
                 let rookSrc, rookDst;
@@ -767,21 +1010,14 @@
             statEl.classList.remove('check');
             alertEl.style.display = 'none';
             
-            const board = game.board();
-            for(let r=0; r<8; r++) {
-                for(let c=0; c<8; c++) {
-                    const p = board[r][c];
-                    const sq = String.fromCharCode(97 + c) + (8 - r);
-                    if (piecesMap[sq]) piecesMap[sq].material.color.setHex(0xffffff);
-                }
-            }
-
+            Object.values(piecesMap).forEach(p => p.material.color.setHex(0xffffff));
             if (game.in_check()) {
                 statEl.classList.add('check');
                 alertEl.style.display = 'block';
                 setTimeout(() => { alertEl.style.display = 'none'; }, 2500);
                 
                 const turn = game.turn();
+                const board = game.board();
                 for(let r=0; r<8; r++) {
                     for(let c=0; c<8; c++) {
                         const p = board[r][c];
@@ -793,34 +1029,31 @@
                 }
             }
 
-            if (game.in_checkmate()) {
-                status = 'CHECKMATE! ' + (moveColor==='White'?'Black':'White') + ' WINS!';
-            } else if (game.in_draw()) {
-                status = 'Game over, drawn position';
-            } else {
+            if (game.in_checkmate()) status = 'CHECKMATE! ' + (moveColor==='White'?'Black':'White') + ' WINS!';
+            else if (game.in_draw()) status = 'Game over, drawn position';
+            else {
                 status = moveColor + ' to move';
                 if (game.in_check()) status += ' (CHECK!)';
             }
             statEl.innerText = status;
         }
 
-        function triggerGameOver() {
-            let reason = "Game Over";
-            if(game.in_checkmate()) {
-                const winner = game.turn() === 'w' ? "BLACK" : "WHITE";
-                reason = `CHECKMATE - ${winner} WINS!`;
-            } else if(game.in_draw()) {
-                reason = "DRAW (Stalemate / Insufficient Material)";
+        function triggerGameOver(manualReason) {
+            let reason = manualReason || "Game Over";
+            if(!manualReason) {
+                if(game.in_checkmate()) {
+                    const winner = game.turn() === 'w' ? "BLACK" : "WHITE";
+                    reason = `CHECKMATE - ${winner} WINS!`;
+                } else if(game.in_draw()) {
+                    reason = "DRAW (Stalemate / Insufficient Material)";
+                }
             }
-            
             document.getElementById('end-title').innerText = reason;
             document.getElementById('end-reason').innerText = `Well fought, ${PLAYER_NAME}.`;
-            
-            setTimeout(() => {
-                document.getElementById('game-over-modal').classList.add('active');
-            }, 1000);
+            setTimeout(() => { document.getElementById('game-over-modal').classList.add('active'); }, 1000);
         }
 
+        // --- VIDEO ---
         const overlay = document.getElementById('battle-overlay');
         const vid = document.getElementById('battle-video');
         const msg = document.getElementById('video-msg');
@@ -834,47 +1067,33 @@
             const victimColor = move.color === 'w' ? 'black' : 'white';
             const attackerPiece = getFullName(move.piece, move.color).split('_')[1];
             const victimPiece = getFullName(move.captured, move.color === 'w' ? 'b' : 'w').split('_')[1];
-            
-            const filename = `${attackerColor}_${attackerPiece}_takes_${victimColor}_${victimPiece}.mp4`;
-            playVideoFile(filename, callback);
+            playVideoFile(`${attackerColor}_${attackerPiece}_takes_${victimColor}_${victimPiece}.mp4`, callback);
         }
 
         function playCheckmateAnimation(move) {
             const attackerColor = move.color === 'w' ? 'white' : 'black';
             const victimColor = move.color === 'w' ? 'black' : 'white';
             const attackerPiece = getFullName(move.piece, move.color).split('_')[1];
-            const filename = `${attackerColor}_${attackerPiece}_takes_${victimColor}_king.mp4`;
-            
-            playVideoFile(filename, () => {
-                triggerGameOver();
-            });
+            playVideoFile(`${attackerColor}_${attackerPiece}_takes_${victimColor}_king.mp4`, () => triggerGameOver());
         }
 
         function playVideoFile(filename, callback) {
             onVideoEnd = callback;
             const fullPath = `${ASSETS_PATH}videos/${filename}`;
-
             msg.innerText = `Loading: ${filename}`;
             vid.src = fullPath;
             overlay.style.display = 'flex';
-            
-            vid.play().then(() => {
-                msg.innerText = "";
-            }).catch(e => {
-                msg.innerText = `VIDEO MISSING: ${filename}\n(Skipping in 1s...)`;
+            vid.play().then(() => { msg.innerText = ""; }).catch(e => {
+                msg.innerText = `VIDEO MISSING: ${filename}`;
                 setTimeout(stopVideo, 1000);
             });
-
             vid.onended = stopVideo;
         }
 
         function stopVideo() {
             vid.pause();
             overlay.style.display = 'none';
-            if (onVideoEnd) {
-                onVideoEnd();
-                onVideoEnd = null;
-            }
+            if (onVideoEnd) { onVideoEnd(); onVideoEnd = null; }
         }
 
         function animate() {
