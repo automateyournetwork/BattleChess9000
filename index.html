@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- Mobile-friendly viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Chess 9000 - Powered by Gemini 3, Nano Banana 3, and Veo 3</title>
+    <title>Gemini Battle Chess 9000 - Ultra Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -13,7 +14,7 @@
         #status { color: #aaa; margin-top: 5px; font-size: 16px; font-weight: bold; }
         #player-display { color: #4da6ff; font-size: 14px; margin-top: 5px; font-family: monospace; letter-spacing: 1px; text-shadow: 0 0 5px #4da6ff;}
 
-        /* CHECK ALERT */
+        /* ALERTS & TRACKERS */
         #check-alert { 
             display: none; 
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -25,7 +26,6 @@
         }
         @keyframes pulse-alert { from { transform: translate(-50%, -50%) scale(1); } to { transform: translate(-50%, -50%) scale(1.1); } }
 
-        /* CAPTURE TRACKER */
         .tracker { 
             position: absolute; top: 100px; width: 50px; bottom: 100px;
             display: flex; flex-direction: column; gap: 5px; padding: 10px; 
@@ -58,7 +58,45 @@
             position: relative;
         }
 
-        /* AVATAR GRID */
+        /* SHOWCASE UI LAYOUT (NEW) */
+        #showcase-ui {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 50;
+        }
+        #showcase-ui.active { display: block; }
+        
+        .sc-panel {
+            position: absolute; background: rgba(10,10,10,0.85); border: 1px solid #333;
+            pointer-events: auto; display: flex; flex-direction: column; gap: 10px; padding: 10px;
+            border-radius: 8px; backdrop-filter: blur(4px);
+        }
+        
+        #sc-top { 
+            top: 10px; left: 50%; transform: translateX(-50%); width: 500px; 
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        #sc-top-row { display: flex; width: 100%; gap: 10px; align-items: center; }
+        #sc-credit { font-size: 11px; color: #888; margin-top: 5px; font-family: monospace; display: flex; align-items: center; gap: 5px; }
+        #sc-credit img { width: 16px; height: 16px; border-radius: 50%; }
+        #sc-credit a { color: #4da6ff; text-decoration: none; }
+
+        #sc-left { top: 100px; bottom: 80px; left: 10px; width: 70px; overflow-y: auto; align-items: center; }
+        #sc-right { top: 100px; bottom: 80px; right: 10px; width: 70px; overflow-y: auto; align-items: center; }
+        #sc-bottom { bottom: 10px; left: 50%; transform: translateX(-50%); width: 500px; flex-direction: row; justify-content: center; align-items: center;}
+
+        .sc-btn { 
+            width: 50px; height: 50px; border: 1px solid #444; background: #222; 
+            cursor: pointer; display: flex; justify-content: center; align-items: center;
+            transition: 0.2s; border-radius: 4px;
+        }
+        .sc-btn:hover { background: #444; border-color: #fff; transform: scale(1.1); }
+        .sc-btn.selected { border-color: #28a745; background: #1a3a1a; box-shadow: 0 0 10px #28a745; }
+        .sc-btn img { width: 100%; height: 100%; object-fit: contain; }
+
+        .sc-tab { padding: 10px 20px; background: #333; color: #888; border: 1px solid #444; cursor: pointer; flex: 1; text-align: center; font-size: 12px;}
+        .sc-tab.active { background: #4da6ff; color: #000; font-weight: bold; border-color: #fff; }
+        
+        /* STANDARD UI ELEMENTS */
         .avatar-grid { 
             display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 15px 0;
             background: #000; padding: 10px; border-radius: 4px; border: 1px solid #333;
@@ -72,15 +110,8 @@
         .avatar-option.selected { border-color: #28a745; background: #1a3a1a; box-shadow: 0 0 10px #28a745; }
         .avatar-option img { width: 100%; height: 100%; object-fit: contain; }
 
-        /* LOBBY */
-        .player-list { 
-            list-style: none; padding: 0; margin: 20px 0; 
-            max-height: 250px; overflow-y: auto; border: 1px solid #333; background: #000;
-        }
-        .player-item { 
-            display: flex; align-items: center; justify-content: space-between; 
-            padding: 10px; background: #111; border-bottom: 1px solid #222;
-        }
+        .player-list { list-style: none; padding: 0; margin: 20px 0; max-height: 250px; overflow-y: auto; border: 1px solid #333; background: #000; }
+        .player-item { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #111; border-bottom: 1px solid #222; }
         .player-item:hover { background: #222; }
         .player-info { display: flex; align-items: center; gap: 10px; text-align: left; }
         .player-stats { font-size: 11px; color: #888; display: block; }
@@ -123,9 +154,7 @@
 
         #battle-overlay { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: black; z-index: 1000;
-            flex-direction: column; align-items: center; justify-content: center;
-            pointer-events: auto;
+            background: black; z-index: 3000; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto;
         }
         video { width: 100%; height: 80%; object-fit: contain; }
         #video-msg { color: #ff5555; font-family: monospace; font-size: 18px; margin-bottom: 20px; }
@@ -153,6 +182,23 @@
         a { color: #4da6ff; text-decoration: none; }
         a:hover { text-decoration: underline; }
 
+        /* LIGHTING UI */
+        .lighting-toggle {
+            position: absolute; top: 20px; right: 20px; width: 32px; height: 32px; border-radius: 50%;
+            background: rgba(0,0,0,0.8); border: 1px solid #555; color: #ffd700;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 30; pointer-events: auto;
+        }
+        .lighting-toggle:hover { background: rgba(40,40,40,0.95); }
+        .lighting-panel {
+            position: absolute; top: 62px; right: 20px; width: 220px; background: rgba(10,10,10,0.96);
+            border: 1px solid #444; border-radius: 8px; padding: 10px 12px 12px; z-index: 30; color: #ddd; font-size: 12px; box-shadow: 0 0 20px rgba(0,0,0,0.95); pointer-events: auto;
+        }
+        .lighting-panel.hidden { display: none; }
+        .lighting-panel h3 { margin: 0 0 6px; font-size: 12px; text-align: left; color: #4da6ff; }
+        .lighting-panel label { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 6px; }
+        .lighting-panel span.value { color: #888; font-family: monospace; }
+        .lighting-panel input[type="range"] { width: 100%; }
+
         @media (max-width: 768px) {
             .menu-box { width: 95%; padding: 15px; max-height: 95vh; overflow-y: auto; }
             .avatar-grid { grid-template-columns: repeat(4, 1fr); }
@@ -161,74 +207,10 @@
             .tracker-right { right: 0; bottom: 10px; align-items: center; }
             .capture-icon { width: 35px; height: 35px; }
             #check-alert { font-size: 40px; width: 80%; }
-        }
-        /* LIGHTING UI */
-        .lighting-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: rgba(0,0,0,0.8);
-            border: 1px solid #555;
-            color: #ffd700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 18px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.9);
-            z-index: 30;
-            pointer-events: auto;
-        }
-
-        .lighting-toggle:hover {
-            background: rgba(40,40,40,0.95);
-        }
-
-        .lighting-panel {
-            position: absolute;
-            top: 62px;
-            right: 20px;
-            width: 220px;
-            background: rgba(10,10,10,0.96);
-            border: 1px solid #444;
-            border-radius: 8px;
-            padding: 10px 12px 12px;
-            z-index: 30;
-            color: #ddd;
-            font-size: 12px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.95);
-            pointer-events: auto;
-        }
-
-        .lighting-panel.hidden {
-            display: none;
-        }
-
-        .lighting-panel h3 {
-            margin: 0 0 6px;
-            font-size: 12px;
-            text-align: left;
-            color: #4da6ff;
-        }
-
-        .lighting-panel label {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 11px;
-            margin-top: 6px;
-        }
-
-        .lighting-panel span.value {
-            color: #888;
-            font-family: monospace;
-        }
-
-        .lighting-panel input[type="range"] {
-            width: 100%;
+            #sc-left, #sc-right { width: 50px; top: 140px; }
+            #sc-top { width: 90%; }
+            #sc-bottom { width: 90%; }
+            .sc-btn { width: 40px; height: 40px; }
         }
     </style>
 
@@ -251,22 +233,23 @@
     <!-- START MENU -->
     <div id="start-menu" class="modal active">
         <div class="menu-box">
-        <!-- INSPIRATION IMAGE -->
-        <img src="battle_chess_1988.png" alt="1988 Inspiration"
-             style="max-width: 100%; max-height: 180px; margin-bottom: 15px;
-                    border-radius: 4px; border: 1px solid #444;
-                    box-shadow: 0 0 15px rgba(0,0,0,0.8);">
+            <!-- INSPIRATION IMAGE -->
+            <img src="battle_chess_1988.png" alt="1988 Inspiration"
+                 style="max-width: 100%; max-height: 180px; margin-bottom: 15px;
+                        border-radius: 4px; border: 1px solid #444;
+                        box-shadow: 0 0 15px rgba(0,0,0,0.8);">
 
-        <h2 style="margin-top:0; margin-bottom: 5px; color: #4da6ff; text-shadow: 0 0 10px #4da6ff;">
-            BATTLE CHESS 9000
-        </h2>
-        <p style="color: #666; font-size: 13px; font-style: italic; margin-top: 0; margin-bottom: 20px;">
-            Inspired by Battle Chess for DOS 1988
-        </p>
+            <h2 style="margin-top:0; margin-bottom: 5px; color: #4da6ff; text-shadow: 0 0 10px #4da6ff;">
+                BATTLE CHESS 9000
+            </h2>
+            <p style="color: #666; font-size: 13px; font-style: italic; margin-top: 0; margin-bottom: 20px;">
+                Inspired by Battle Chess for DOS 1988
+            </p>
+            
             <input type="text" id="player-name-input" placeholder="ENTER YOUR NAME" maxlength="15">
             
             <label style="margin-top: 15px; color: #aaa; font-size: 14px;">Select Game Theme</label>
-            <select id="theme-select" onchange="updateAvatarGrid()"><option disabled selected value="">Loading themes...</option></select>
+            <select id="theme-select" onchange="updateAvatarGrid()"><option disabled selected>Loading...</option></select>
             
             <label style="margin-top: 15px; color: #aaa; font-size: 14px;">Choose Avatar</label>
             <div id="avatar-grid" class="avatar-grid"></div>
@@ -280,7 +263,32 @@
                     <button class="action-btn" onclick="startGameAI()">VS AI (SOLO)</button>
                     <button class="action-btn" onclick="startGameLocal()">VS FRIEND (LOCAL)</button>
                 </div>
+                <!-- NEW SHOWCASE BUTTON -->
+                <button onclick="openShowcase()" style="background:#333; color:#aaa; margin-top:10px; border:1px solid #555;">THEME SHOWCASE</button>
             </div>
+        </div>
+    </div>
+
+    <!-- SHOWCASE UI (NEW) -->
+    <div id="showcase-ui">
+        <div id="sc-top" class="sc-panel">
+            <div id="sc-top-row">
+                <select id="sc-theme-select" onchange="updateShowcaseTheme()" style="margin:0; padding:5px; width:auto; flex:2;"></select>
+                <button onclick="showcaseBoard()" style="flex:1; margin:0; padding:5px; font-size:12px;">VIEW BOARD</button>
+                <button onclick="closeShowcase()" style="flex:0.5; margin:0; padding:5px; background:#444; color:white;">X</button>
+            </div>
+            <div id="sc-credit">Loading credit...</div>
+        </div>
+        <div id="sc-left" class="sc-panel">
+            <!-- White Pieces Injected Here -->
+        </div>
+        <div id="sc-right" class="sc-panel">
+            <!-- Black Pieces Injected Here -->
+        </div>
+        <div id="sc-bottom" class="sc-panel">
+            <div id="sc-mode-explore" class="sc-tab active" onclick="setShowcaseMode('explore')">EXPLORE ASSETS</div>
+            <div id="sc-mode-battle" class="sc-tab" onclick="setShowcaseMode('battle')">BATTLE PREVIEW</div>
+            <button id="sc-fight-btn" onclick="triggerShowcaseBattle()" style="display:none; background:#d00; color:white; margin-left:10px;">WATCH FIGHT</button>
         </div>
     </div>
 
@@ -342,13 +350,45 @@
         </div>
     </div>
 
-    <!-- GAME OVER -->
+    <!-- GAME OVER / INFO MODAL -->
     <div id="game-over-modal" class="modal">
         <div class="menu-box" style="width: 800px; max-width: 95%;">
             <div class="endgame-content">
                 <h1 id="end-title" style="text-align: center; color: #28a745;">GAME OVER</h1>
                 <p id="end-reason" style="text-align: center; font-size: 18px; margin-bottom: 30px;"></p>
+
+                <div style="background: #222; padding: 20px; border-left: 4px solid #4da6ff; margin-bottom: 20px;">
+                    <p style="margin-top:0; font-style: italic;">
+                        "This game was fully vibe coded over an afternoon with <strong>Gemini-3, Nano Banana 3, and Veo3</strong> plus an API key."
+                    </p>
+                    <p>
+                        Did you enjoy your Battle Chess experience? Did the animations live up to your expectations?
+                    </p>
+                    <p style="font-weight: bold; color: white;">
+                        Please write up your experience in a Tweet, LinkedIn post, or Blog! Share with your kids, friends, and colleagues.
+                    </p>
+                </div>
+
+                <h3>How It Was Made (The Prompts)</h3>
+                <p>Want to fork this? Run the asset-generator in the repo and use these exact prompts to recreate this theme:</p>
+                
+                <p class="highlight">1. Theme Title:</p>
+                <div class="prompt-block">medieval_classic</div>
+
+                <p class="highlight">2. Board Style:</p>
+                <div class="prompt-block">Medeival 1600s castles with white marble and black obsidian as classical a chessboard you can make with these matierals at the time. Do NOT display pieces just the board and its polished matierals of marble and black obsidian.</div>
+
+                <p class="highlight">3. Piece Style:</p>
+                <div class="prompt-block">"These are chess pieces in a set. Do not deviate from classic chess pieces but be creative. The Pawns should be peasants or orcs not just chess pawns. As with the rest of the pieces. 1600s medieval European style with White as holy good and Black as gothic evil, showing a noble crowned king, regal robed queen, Catholic bishops with mitres, armored knights on warhorses, fortified stone castle rooks, and simple foot-soldier pawns for White, versus a dark overlord king with spiked crown, sinister robed queen, corrupted plague-priest bishops, skeletal or demonic knights on shadow steeds, dragon-tower rooks with infernal accents, and ragged disposable pawns for Black, all rendered individually in hand-painted medieval illustration style with clear chess silhouettes, high detail, dramatic shading, parchment background, 1:1 aspect ratio, and consistent lighting. IMPORTANT use highly detailed white marble with gold accents for white pieces and black obsidian with dark silver accents for black pieces. They should be highly detailed and look like they were carved from those materials and polished to a high shine. DO NOT MAKE CARTOONS"</div>
+
+                <p class="highlight">4. Animation Style:</p>
+                <div class="prompt-block">"Create ultra-violent Excalibur-1980-style medieval fantasy battle animations showing chess pieces as armored warriors made of metal, bone, and enchanted stone brutally hacking, cleaving, crushing, and shattering each other during captures—for example pawns hacking down pawns, knights impaling pawns, rooks smashing queens, bishops cleaving rooks—rendered with hyper-stylized metallic blood-spray, glowing runic energy bursts, slow-motion sword impacts, shattered armor fragments, fog-soaked battle lighting, heavy chromatic bloom, mythic brutality, and the dark, operatic, blood-drenched tone of John Boorman’s Excalibur. IMPORTANT ALWAYS source the characters from the images do not change their appearance or style. These are medieval fantasy chess pieces NOT generic fantasy characters. DO NOT make cartoons or low detail images. Use highly detailed realistic textures and lighting. DO NOT use modern weapons or technology. ONLY the weapons the piece is holding."</div>
+
+                <hr style="border-color: #333; margin: 30px 0;">
+
                 <div style="text-align: center;">
+                    <p><strong>Fork the Repo:</strong> <br> <a href="https://github.com/automateyournetwork/BattleChess9000" target="_blank">github.com/automateyournetwork/BattleChess9000</a></p>
+                    <p><strong>Contact:</strong> <br> <a href="mailto:ptcapo@gmail.com">ptcapo@gmail.com</a></p>
                     <button onclick="location.reload()" style="margin-top: 20px;">Play Again</button>
                 </div>
             </div>
@@ -367,7 +407,6 @@
 
     <div id="lighting-panel" class="lighting-panel hidden">
         <h3>Lighting</h3>
-
         <label>Exposure <span id="val-exposure" class="value">1.0</span></label>
         <input id="slider-exposure" type="range" min="0.3" max="1.5" step="0.05" value="1.0">
 
@@ -387,12 +426,7 @@
     <div id="check-alert">CHECK!</div>
     <div id="tracker-w" class="tracker tracker-left"></div>
     <div id="tracker-b" class="tracker tracker-right"></div>
-
-    <div id="battle-overlay">
-        <div id="video-msg"></div>
-        <video id="battle-video" playsinline></video>
-        <button id="skip-btn">Skip Animation</button>
-    </div>
+    <div id="battle-overlay"><div id="video-msg"></div><video id="battle-video" playsinline></video><button id="skip-btn">Skip</button></div>
 
     <script>
         // --- CONFIG & GLOBALS ---
@@ -413,13 +447,18 @@
         let isMultiplayer = false;
         let isAIEnabled = false; 
         let isAIThinking = false;
-        let pendingChallengeId = null;
         
+        // Showcase State Variables
+        let isShowcaseMode = false;
+        let scSelectedWhite = null, scSelectedBlack = null, scCurrentMode = 'explore';
+        let scCurrentMesh = null; // Track current center mesh for cleanup
+
+        let pendingChallengeId = null;
         let selectedSquare = null;
         let selectedMesh = null;
         let pendingPromotionMove = null;
 
-        const IN_PROGRESS_THEMES = ["super_mario_world"];
+        const IN_PROGRESS_THEMES = ["super_mario_world", "justice_league_vs_legion_of_doom"];
 
         // --- THREE.JS SETUP ---
         const scene = new THREE.Scene();
@@ -432,11 +471,11 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+        // Tone Mapping enabled for bloom/lighting
         renderer.outputEncoding = THREE.sRGBEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.0;
 
-        // Removed ReinhardToneMapping to prevent dull/muted colors
         document.body.appendChild(renderer.domElement);
 
         // POST PROCESSING (BLOOM)
@@ -446,9 +485,8 @@
             new THREE.Vector2(window.innerWidth, window.innerHeight),
             1.0, 0.3, 0.85
         );
-        // Only bloom the brightest highlights
-        bloomPass.threshold = 0.7;   // 0.6–0.8 is a good range
-        bloomPass.strength = 0.25;   // subtle glow, not nuclear
+        bloomPass.threshold = 0.7;   
+        bloomPass.strength = 0.25;   
         bloomPass.radius   = 0.35;
         
         composer = new THREE.EffectComposer(renderer);
@@ -460,25 +498,25 @@
         controls.dampingFactor = 0.05;
 
         // LIGHTING (ENHANCED - Balanced)
-        const ambientLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.45); // Slightly brightened
+        const ambientLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.45);
         scene.add(ambientLight);
 
-        const spotLight = new THREE.SpotLight(0xffaa00, 1.1); // Slightly brightened
+        const spotLight = new THREE.SpotLight(0xffaa00, 1.1);
         spotLight.position.set(30, 100, 50);
         spotLight.castShadow = true;
         spotLight.shadow.mapSize.width = 2048;
         spotLight.shadow.mapSize.height = 2048;
         scene.add(spotLight);
 
-        // Mouse light raised up to avoid being inside pieces
-        const mouseLight = new THREE.PointLight(0x4da6ff, .8, 50); // Reduced intensity, increased distance
-        mouseLight.position.set(0, 20, 0); // Raised y from 5 to 20
+        const mouseLight = new THREE.PointLight(0x4da6ff, 0.8, 50);
+        mouseLight.position.set(0, 20, 0); 
         scene.add(mouseLight);
 
         const textureLoader = new THREE.TextureLoader();
         const piecesMap = {};
         const pieceCache = {};
         let particles = [];
+        let showcaseHelpers = []; // Store grid/platform to remove them
 
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
@@ -494,7 +532,10 @@
             loadThemes().then(() => {
                 const urlParams = new URLSearchParams(window.location.search);
                 const roomId = urlParams.get('room');
-                if (roomId) joinPrivateGame(roomId);
+                if (roomId) {
+                    joinPrivateGame(roomId);
+                }
+                setupLightingUI();
             });
         };
 
@@ -506,7 +547,9 @@
                 })
                 .then(themes => {
                     const sel = document.getElementById('theme-select');
+                    const scSel = document.getElementById('sc-theme-select');
                     sel.innerHTML = '';
+                    scSel.innerHTML = '';
                     
                     if (!themes || themes.length === 0) {
                         sel.add(new Option("No themes found", "", true, true));
@@ -522,9 +565,11 @@
                         const grp = document.createElement('optgroup');
                         grp.label = "READY TO PLAY";
                         readyThemes.forEach(t => {
-                            grp.appendChild(new Option(pretty(t), t));
+                            const opt = new Option(pretty(t), t);
+                            grp.appendChild(opt);
                         });
                         sel.add(grp);
+                        scSel.add(grp.cloneNode(true));
                     }
 
                     // In Progress Themes
@@ -532,12 +577,15 @@
                         const grp = document.createElement('optgroup');
                         grp.label = "UNDER DEVELOPMENT (WIP)";
                         inProgressThemes.forEach(t => {
-                            grp.appendChild(new Option(`${pretty(t)} [WIP]`, t));
+                             const opt = new Option(`${pretty(t)} [WIP]`, t);
+                             grp.appendChild(opt);
                         });
                         sel.add(grp);
+                        scSel.add(grp.cloneNode(true));
                     }
 
                     sel.selectedIndex = 0;
+                    scSel.selectedIndex = 0;
                     updateAvatarGrid(); 
                 })
                 .catch(e => {
@@ -545,6 +593,203 @@
                     document.getElementById('theme-select').innerHTML = '<option>Run asset_generator.py first!</option>';
                 });
         }
+
+        // --- SHOWCASE LOGIC (NEW) ---
+        function openShowcase() {
+            document.getElementById('start-menu').classList.remove('active');
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('showcase-ui').classList.add('active');
+            isShowcaseMode = true;
+            
+            // Set initial theme from main menu
+            const mainSel = document.getElementById('theme-select');
+            document.getElementById('sc-theme-select').value = mainSel.value;
+            
+            updateShowcaseTheme();
+        }
+
+        function closeShowcase() {
+            document.getElementById('showcase-ui').classList.remove('active');
+            document.getElementById('start-menu').classList.add('active');
+            document.getElementById('hud').style.display = 'block';
+            isShowcaseMode = false;
+            
+            // Clean up showcase specific items
+            clearShowcaseScene();
+
+            // Clear scene
+            Object.values(piecesMap).forEach(m => scene.remove(m));
+            for(let key in piecesMap) delete piecesMap[key];
+            const board = scene.children.find(c => c.geometry && c.geometry.type === 'BoxGeometry');
+            if(board) scene.remove(board);
+            camera.position.set(0, 60, 80);
+        }
+
+        function updateShowcaseTheme() {
+            const theme = document.getElementById('sc-theme-select').value;
+            CURRENT_THEME = theme;
+            ASSETS_PATH = `assets/${CURRENT_THEME}/`;
+            
+            // FETCH GITHUB CREDIT with 15 commits depth and filter logic
+            const creditEl = document.getElementById('sc-credit');
+            creditEl.innerHTML = 'Fetching contributor info...';
+            
+            fetch(`https://api.github.com/repos/automateyournetwork/BattleChess9000/commits?path=assets/${theme}&per_page=15`)
+                .then(r => {
+                    if(r.status === 403) throw new Error("Rate Limit");
+                    return r.json();
+                })
+                .then(data => {
+                    if(data && data.length > 0) {
+                        const repoOwner = 'automateyournetwork';
+                        // Look for first non-owner or fallback to latest
+                        let target = data.find(c => c.author && c.author.login.toLowerCase() !== repoOwner);
+                        if (!target) target = data[0];
+
+                        const author = target.author;
+                        const commit = target.commit;
+                        
+                        if(author) {
+                            creditEl.innerHTML = `<img src="${author.avatar_url}"> Contributor: <a href="${author.html_url}" target="_blank">@${author.login}</a>`;
+                        } else {
+                            creditEl.innerText = `Contributor: ${commit.author.name}`;
+                        }
+                    } else {
+                        creditEl.innerText = "Contributor: Unknown (Local or No History)";
+                    }
+                })
+                .catch(e => {
+                    console.warn("GitHub API Error:", e);
+                    creditEl.innerHTML = `<a href="https://github.com/automateyournetwork/BattleChess9000/graphs/contributors" target="_blank">View All Contributors</a>`;
+                });
+
+            // Populate Side Panels
+            const pieces = ['k','q','r','b','n','p'];
+            const left = document.getElementById('sc-left'); left.innerHTML = '';
+            const right = document.getElementById('sc-right'); right.innerHTML = '';
+            
+            pieces.forEach(p => {
+                // White
+                const btnW = document.createElement('div'); btnW.className = 'sc-btn';
+                btnW.dataset.piece = p; btnW.dataset.color = 'w';
+                const imgW = document.createElement('img');
+                imgW.src = `${ASSETS_PATH}pieces/${getFullName(p, 'w')}.png`;
+                btnW.appendChild(imgW);
+                btnW.onclick = () => selectShowcasePiece('w', p, btnW);
+                left.appendChild(btnW);
+
+                // Black
+                const btnB = document.createElement('div'); btnB.className = 'sc-btn';
+                btnB.dataset.piece = p; btnB.dataset.color = 'b';
+                const imgB = document.createElement('img');
+                imgB.src = `${ASSETS_PATH}pieces/${getFullName(p, 'b')}.png`;
+                btnB.appendChild(imgB);
+                btnB.onclick = () => selectShowcasePiece('b', p, btnB);
+                right.appendChild(btnB);
+            });
+
+            // Default View
+            showcaseBoard();
+        }
+
+        function clearShowcaseScene() {
+            // Remove helpers
+            showcaseHelpers.forEach(h => scene.remove(h));
+            showcaseHelpers = [];
+            // Remove any "center" piece
+            if(scCurrentMesh) {
+                 scene.remove(scCurrentMesh);
+                 scCurrentMesh = null;
+                 delete piecesMap['center'];
+            }
+        }
+
+        function showcaseBoard() {
+            clearShowcaseScene();
+            // Clear regular pieces
+            Object.values(piecesMap).forEach(m => scene.remove(m));
+            const oldBoard = scene.children.find(c => c.geometry && c.geometry.type === 'BoxGeometry');
+            if(oldBoard) scene.remove(oldBoard);
+            
+            buildSimpleBoard();
+            camera.position.set(0, 60, 80);
+            camera.lookAt(0,0,0);
+            controls.target.set(0, 0, 0); // Reset orbit target
+            
+            document.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('selected'));
+            scSelectedWhite = null; scSelectedBlack = null;
+            updateBattleButton();
+        }
+
+        function setShowcaseMode(mode) {
+            scCurrentMode = mode;
+            document.querySelectorAll('.sc-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`sc-mode-${mode}`).classList.add('active');
+            updateBattleButton();
+        }
+
+        function selectShowcasePiece(color, type, btnElement) {
+            const parent = color === 'w' ? document.getElementById('sc-left') : document.getElementById('sc-right');
+            Array.from(parent.children).forEach(c => c.classList.remove('selected'));
+            btnElement.classList.add('selected');
+
+            if (color === 'w') scSelectedWhite = type;
+            else scSelectedBlack = type;
+
+            if (scCurrentMode === 'explore') {
+                clearShowcaseScene();
+                
+                // Clear Scene of regular board/pieces
+                Object.values(piecesMap).forEach(m => scene.remove(m));
+                const oldBoard = scene.children.find(c => c.geometry && c.geometry.type === 'BoxGeometry');
+                if(oldBoard) scene.remove(oldBoard);
+
+                // Add Platform/Grid for reference
+                const platformGeo = new THREE.CylinderGeometry(5, 5.5, 0.5, 32);
+                const platformMat = new THREE.MeshStandardMaterial( {color: 0x222222, roughness: 0.2, metalness: 0.8} );
+                const platform = new THREE.Mesh( platformGeo, platformMat );
+                platform.position.set(0, -0.25, 0);
+                platform.receiveShadow = true;
+                scene.add( platform );
+                showcaseHelpers.push(platform);
+                
+                const gridHelper = new THREE.GridHelper( 100, 100, 0x444444, 0x111111 );
+                scene.add( gridHelper );
+                showcaseHelpers.push(gridHelper);
+
+                // Spawn Single Piece in Center
+                spawnPiece(type, color, 'center'); 
+                const mesh = piecesMap['center'];
+                if(mesh) {
+                    scCurrentMesh = mesh;
+                    mesh.position.set(0, 5.5, 0);
+                }
+                
+                // Focus Camera
+                new TWEEN.Tween(camera.position).to({ x: 0, y: 20, z: 40 }, 500).easing(TWEEN.Easing.Quadratic.Out).start();
+                controls.target.set(0, 5.5, 0);
+            }
+
+            updateBattleButton();
+        }
+
+        function updateBattleButton() {
+            const btn = document.getElementById('sc-fight-btn');
+            if (scCurrentMode === 'battle' && scSelectedWhite && scSelectedBlack) {
+                if(scSelectedWhite === 'k' && scSelectedBlack === 'k') btn.style.display = 'none'; 
+                else btn.style.display = 'block';
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+
+        function triggerShowcaseBattle() {
+            const wName = getFullName(scSelectedWhite, 'w').split('_')[1];
+            const bName = getFullName(scSelectedBlack, 'b').split('_')[1];
+            const filename = `white_${wName}_takes_black_${bName}.mp4`;
+            playVideoFile(filename, () => { /* Animation done */ });
+        }
+
 
         // --- AVATAR & SETUP ---
         function updateAvatarGrid() {
@@ -724,6 +969,39 @@
         function acceptChallenge() { socket.send(JSON.stringify({ type: 'challenge_accept', targetId: pendingChallengeId })); }
         function declineChallenge() { document.getElementById('challenge-modal').classList.remove('active'); pendingChallengeId = null; }
 
+        // --- LIGHTING UI HOOKUP ---
+        function setupLightingUI() {
+            const toggleEl = document.getElementById('lighting-toggle');
+            const panelEl  = document.getElementById('lighting-panel');
+        
+            toggleEl.addEventListener('click', () => {
+                panelEl.classList.toggle('hidden');
+            });
+        
+            // Helper to wire a slider
+            function bindSlider(sliderId, labelId, getVal, setVal, decimals = 2) {
+                const slider = document.getElementById(sliderId);
+                const label  = document.getElementById(labelId);
+                if (!slider || !label) return;
+            
+                // initial
+                slider.value = getVal().toFixed(decimals);
+                label.textContent = getVal().toFixed(decimals);
+            
+                slider.addEventListener('input', () => {
+                    const v = parseFloat(slider.value);
+                    setVal(v);
+                    label.textContent = v.toFixed(decimals);
+                });
+            }
+        
+            bindSlider('slider-exposure', 'val-exposure', () => renderer.toneMappingExposure, v => renderer.toneMappingExposure = v);
+            bindSlider('slider-spot', 'val-spot', () => spotLight.intensity, v => spotLight.intensity = v);
+            bindSlider('slider-ambient', 'val-ambient', () => ambientLight.intensity, v => ambientLight.intensity = v);
+            bindSlider('slider-mouse', 'val-mouse', () => mouseLight.intensity, v => mouseLight.intensity = v);
+            bindSlider('slider-bloom', 'val-bloom', () => bloomPass.strength, v => bloomPass.strength = v);
+        }
+
         // --- GAMEPLAY VISUALS ---
         function buildSimpleBoard() {
             const boardTexture = textureLoader.load(ASSETS_PATH + 'board_texture.png', (tex) => { tex.encoding = THREE.sRGBEncoding; });
@@ -757,11 +1035,17 @@
             
             const geometry = new THREE.PlaneGeometry(11.5, 11.5);
             const mesh = new THREE.Mesh(geometry, material);
-            const pos = squareToVector(square);
             
-            // Always face camera but keep upright
-            mesh.position.set(pos.x, pos.y, pos.z);
+            if (square === 'center') {
+                mesh.position.set(0, 5.5, 0); // Center for Showcase
+            } else {
+                const pos = squareToVector(square);
+                mesh.position.set(pos.x, pos.y, pos.z);
+            }
+            
+            // Always face camera but keep upright (CYLINDRICAL BILLBOARDING)
             mesh.rotation.x = 0; // Vertical
+            
             mesh.customDepthMaterial = new THREE.MeshDepthMaterial({
                 depthPacking: THREE.RGBADepthPacking,
                 map: texture,
@@ -814,8 +1098,10 @@
         // --- CORE GAMEPLAY ---
         function onInteraction(clientX, clientY) {
             if(document.getElementById('battle-overlay').style.display === 'flex') return;
-            if((isAIEnabled || isMultiplayer) && game.turn() !== PLAYER_COLOR) return;
+            if(isShowcaseMode) return; // No game logic in showcase
 
+            if((isAIEnabled || isMultiplayer) && game.turn() !== PLAYER_COLOR) return;
+            
             mouse.x = (clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(clientY / window.innerHeight) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
@@ -846,71 +1132,6 @@
                 }
             }
         }
-
-        // --- LIGHTING UI HOOKUP ---
-        function setupLightingUI() {
-            const toggleEl = document.getElementById('lighting-toggle');
-            const panelEl  = document.getElementById('lighting-panel');
-        
-            toggleEl.addEventListener('click', () => {
-                panelEl.classList.toggle('hidden');
-            });
-        
-            // Helper to wire a slider
-            function bindSlider(sliderId, labelId, getVal, setVal, decimals = 2) {
-                const slider = document.getElementById(sliderId);
-                const label  = document.getElementById(labelId);
-                if (!slider || !label) return;
-            
-                // initial
-                slider.value = getVal().toFixed(decimals);
-                label.textContent = getVal().toFixed(decimals);
-            
-                slider.addEventListener('input', () => {
-                    const v = parseFloat(slider.value);
-                    setVal(v);
-                    label.textContent = v.toFixed(decimals);
-                });
-            }
-        
-            bindSlider(
-                'slider-exposure',
-                'val-exposure',
-                () => renderer.toneMappingExposure,
-                v  => renderer.toneMappingExposure = v
-            );
-        
-            bindSlider(
-                'slider-spot',
-                'val-spot',
-                () => spotLight.intensity,
-                v  => spotLight.intensity = v
-            );
-        
-            bindSlider(
-                'slider-ambient',
-                'val-ambient',
-                () => ambientLight.intensity,
-                v  => ambientLight.intensity = v
-            );
-        
-            bindSlider(
-                'slider-mouse',
-                'val-mouse',
-                () => mouseLight.intensity,
-                v  => mouseLight.intensity = v
-            );
-        
-            bindSlider(
-                'slider-bloom',
-                'val-bloom',
-                () => bloomPass.strength,
-                v  => bloomPass.strength = v
-            );
-        }
-        
-        // Make sure this runs once DOM + lights are ready
-        window.addEventListener('load', setupLightingUI);
 
         // Interaction Listeners
         renderer.domElement.addEventListener('pointerdown', (e) => { if(e.button===0){ inputState.isPointerDown=true; inputState.startX=e.clientX; inputState.startY=e.clientY; } });
@@ -1112,12 +1333,11 @@
             TWEEN.update();
             controls.update();
             
-            // Billboard pieces
+            // Billboard pieces - CYLINDRICAL (Y-axis only)
             for(let key in piecesMap) {
                 const mesh = piecesMap[key];
-                mesh.lookAt(camera.position); 
-                // Keep upright? 
-                // mesh.rotation.x = 0; // Uncomment for upright billboards, but lookAt camera makes them face you 
+                // mesh.lookAt(camera.position); 
+                mesh.lookAt(camera.position.x, mesh.position.y, camera.position.z);
             }
 
             // Particles
